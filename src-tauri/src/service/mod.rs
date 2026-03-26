@@ -57,6 +57,7 @@ where
             .load_active_tasks()
             .map_err(|err| TaskServiceError::Repository(err.to_string()))?;
 
+        // completed_at はメモリ専用情報のため、永続化から読んだ直後に必ず消去する。
         for task in &mut active_tasks {
             task.completed_at = None;
         }
@@ -103,6 +104,7 @@ where
                 id: input.id.clone(),
             })?;
 
+        // 未固定→固定への遷移時だけ上限判定する（固定→固定の更新は許容）。
         if matches!(input.is_pinned, Some(true)) && !self.active_tasks[task_index].is_pinned {
             self.ensure_pin_capacity(Some(&input.id))?;
         }
@@ -136,6 +138,7 @@ where
             });
         }
 
+        // 同じIDの完了済みタスクも同時に破棄し、状態を一意に保つ。
         self.completed_tasks.retain(|task| task.id != id);
         self.persist_active_tasks()?;
         Ok(self.list_tasks())
@@ -160,6 +163,7 @@ where
 
         let mut task = self.active_tasks.remove(task_index);
         task.completed_at = Some(completed_at);
+        // 完了済みはJSON保存せずメモリ側で72時間だけ保持する。
         self.completed_tasks.push(task);
 
         self.persist_active_tasks()?;
@@ -197,6 +201,7 @@ where
         let before = self.completed_tasks.len();
 
         self.completed_tasks.retain(|task| match task.completed_at {
+            // 72時間ちょうどは削除対象にするため、strictに `>` を使う。
             Some(ts) => ts > cutoff,
             None => true,
         });
@@ -209,6 +214,7 @@ where
             .active_tasks
             .iter()
             .filter(|task| {
+                // 更新対象自身はカウントから除外し、再固定操作で誤検知しないようにする。
                 task.is_pinned
                     && exempt_task_id
                         .map(|exempt_id| task.id.as_str() != exempt_id)
@@ -260,6 +266,7 @@ fn compare_tasks(left: &Task, right: &Task, now: DateTime<Local>) -> Ordering {
     let left_key = task_sort_key(left, now);
     let right_key = task_sort_key(right, now);
 
+    // 同順位時に title -> id で決定し、並び順を決定論的にする。
     left_key
         .cmp(&right_key)
         .then_with(|| left.title.cmp(&right.title))
@@ -267,6 +274,7 @@ fn compare_tasks(left: &Task, right: &Task, now: DateTime<Local>) -> Ordering {
 }
 
 fn task_sort_key(task: &Task, now: DateTime<Local>) -> (u8, i64) {
+    // group: 0=固定, 1=期限超過/当日, 2=daily, 3=未来期限
     if task.is_pinned {
         return (0, deadline_sort_value(task));
     }

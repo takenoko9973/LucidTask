@@ -46,6 +46,7 @@ impl JsonTaskRepository {
     }
 
     pub fn save_tasks(&self, tasks: &[Task]) -> Result<(), RepositoryError> {
+        // 完了済みタスクは仕様上JSON保存対象外のため除外して書き込む。
         let incomplete_tasks: Vec<Task> = tasks
             .iter()
             .filter(|task| task.completed_at.is_none())
@@ -126,6 +127,7 @@ impl JsonTaskRepository {
                     ErrorKind::AlreadyExists | ErrorKind::PermissionDenied
                 ) && self.tasks_file_path.exists() =>
             {
+                // Windows環境では置換renameが失敗するケースがあるため明示置換にフォールバックする。
                 fs::remove_file(&self.tasks_file_path)?;
                 fs::rename(&tmp_file_path, &self.tasks_file_path)?;
                 Ok(())
