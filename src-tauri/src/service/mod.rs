@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::fmt::{Display, Formatter};
 
 use chrono::{DateTime, Duration, Local};
 
@@ -38,6 +39,21 @@ pub enum TaskServiceError {
     InvalidTitle,
 }
 
+impl Display for TaskServiceError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Repository(message) => write!(f, "Repository error: {message}"),
+            Self::TaskNotFound { id } => write!(f, "Task not found: {id}"),
+            Self::PinnedLimitExceeded { max } => {
+                write!(f, "Pinned task limit exceeded (max: {max})")
+            }
+            Self::InvalidTitle => write!(f, "Task title must not be empty"),
+        }
+    }
+}
+
+impl std::error::Error for TaskServiceError {}
+
 pub struct TaskService<S>
 where
     S: TaskStore,
@@ -52,10 +68,25 @@ where
     S: TaskStore,
     S::Error: ToString,
 {
+    fn to_repository_error(error: S::Error) -> TaskServiceError {
+        TaskServiceError::Repository(error.to_string())
+    }
+
+    fn task_not_found(id: impl Into<String>) -> TaskServiceError {
+        TaskServiceError::TaskNotFound { id: id.into() }
+    }
+
+    fn active_task_index_by_id(&self, id: &str) -> Result<usize, TaskServiceError> {
+        self.active_tasks
+            .iter()
+            .position(|task| task.id == id)
+            .ok_or_else(|| Self::task_not_found(id))
+    }
+
     pub fn new(store: S) -> Result<Self, TaskServiceError> {
         let mut active_tasks = store
             .load_active_tasks()
-            .map_err(|err| TaskServiceError::Repository(err.to_string()))?;
+            .map_err(Self::to_repository_error)?;
 
         // completed_at はメモリ専用情報のため、永続化から読んだ直後に必ず消去する。
         for task in &mut active_tasks {
@@ -96,30 +127,30 @@ where
     }
 
     pub fn update_task(&mut self, input: UpdateTaskInput) -> Result<Task, TaskServiceError> {
-        let task_index = self
-            .active_tasks
-            .iter()
-            .position(|task| task.id == input.id)
-            .ok_or_else(|| TaskServiceError::TaskNotFound {
-                id: input.id.clone(),
-            })?;
+        let UpdateTaskInput {
+            id,
+            title,
+            task_type,
+            is_pinned,
+        } = input;
+        let task_index = self.active_task_index_by_id(&id)?;
 
         // 未固定→固定への遷移時だけ上限判定する（固定→固定の更新は許容）。
-        if matches!(input.is_pinned, Some(true)) && !self.active_tasks[task_index].is_pinned {
-            self.ensure_pin_capacity(Some(&input.id))?;
+        if matches!(is_pinned, Some(true)) && !self.active_tasks[task_index].is_pinned {
+            self.ensure_pin_capacity(Some(id.as_str()))?;
         }
 
         let task = &mut self.active_tasks[task_index];
 
-        if let Some(title) = input.title {
+        if let Some(title) = title {
             task.title = validate_title(title)?;
         }
 
-        if let Some(task_type) = input.task_type {
+        if let Some(task_type) = task_type {
             task.task_type = task_type;
         }
 
-        if let Some(is_pinned) = input.is_pinned {
+        if let Some(is_pinned) = is_pinned {
             task.is_pinned = is_pinned;
         }
 
@@ -133,9 +164,7 @@ where
         self.active_tasks.retain(|task| task.id != id);
 
         if self.active_tasks.len() == original_len {
-            return Err(TaskServiceError::TaskNotFound {
-                id: id.to_string(),
-            });
+            return Err(Self::task_not_found(id));
         }
 
         // 同じIDの完了済みタスクも同時に破棄し、状態を一意に保つ。
@@ -153,13 +182,7 @@ where
         id: &str,
         completed_at: DateTime<Local>,
     ) -> Result<Vec<Task>, TaskServiceError> {
-        let task_index = self
-            .active_tasks
-            .iter()
-            .position(|task| task.id == id)
-            .ok_or_else(|| TaskServiceError::TaskNotFound {
-                id: id.to_string(),
-            })?;
+        let task_index = self.active_task_index_by_id(id)?;
 
         let mut task = self.active_tasks.remove(task_index);
         task.completed_at = Some(completed_at);
@@ -171,13 +194,7 @@ where
     }
 
     pub fn set_task_pinned(&mut self, id: &str, is_pinned: bool) -> Result<Task, TaskServiceError> {
-        let task_index = self
-            .active_tasks
-            .iter()
-            .position(|task| task.id == id)
-            .ok_or_else(|| TaskServiceError::TaskNotFound {
-                id: id.to_string(),
-            })?;
+        let task_index = self.active_task_index_by_id(id)?;
 
         if is_pinned && !self.active_tasks[task_index].is_pinned {
             self.ensure_pin_capacity(Some(id))?;
@@ -234,7 +251,7 @@ where
     fn persist_active_tasks(&mut self) -> Result<(), TaskServiceError> {
         self.store
             .save_active_tasks(&self.active_tasks)
-            .map_err(|err| TaskServiceError::Repository(err.to_string()))
+            .map_err(Self::to_repository_error)
     }
 
     #[cfg(test)]
@@ -246,7 +263,7 @@ where
     fn persisted_active_tasks(&self) -> Result<Vec<Task>, TaskServiceError> {
         self.store
             .load_active_tasks()
-            .map_err(|err| TaskServiceError::Repository(err.to_string()))
+            .map_err(Self::to_repository_error)
     }
 }
 
@@ -438,7 +455,10 @@ mod tests {
         let persisted_tasks = service
             .persisted_active_tasks()
             .expect("active tasks should be persisted");
-        let persisted_ids: Vec<&str> = persisted_tasks.iter().map(|task| task.id.as_str()).collect();
+        let persisted_ids: Vec<&str> = persisted_tasks
+            .iter()
+            .map(|task| task.id.as_str())
+            .collect();
         assert_eq!(persisted_ids, vec!["b"]);
     }
 

@@ -59,28 +59,29 @@ fn load_tasks_returns_empty_when_file_does_not_exist() {
 }
 
 #[test]
-fn create_task_persists_and_load_returns_same_task() {
+fn save_tasks_persists_and_load_returns_same_tasks() {
     let temp_dir = make_temp_dir("create-load");
     let repository = JsonTaskRepository::from_app_data_dir(&temp_dir);
     let task = make_task("task-1", "first", false);
 
-    let created = repository.create_task(&task).expect("create should succeed");
+    repository
+        .save_tasks(std::slice::from_ref(&task))
+        .expect("save should succeed");
     let loaded = repository.load_tasks().expect("load should succeed");
 
-    assert_eq!(created.len(), 1);
-    assert_eq!(loaded, created);
+    assert_eq!(loaded.len(), 1);
     assert_eq!(loaded[0].id, "task-1");
     cleanup_temp_dir(&temp_dir);
 }
 
 #[test]
-fn update_task_changes_title_type_and_pin() {
+fn save_tasks_overwrites_existing_entries() {
     let temp_dir = make_temp_dir("update");
     let repository = JsonTaskRepository::from_app_data_dir(&temp_dir);
     let original = make_task("task-1", "original", false);
     repository
-        .create_task(&original)
-        .expect("seed create should succeed");
+        .save_tasks(&[original])
+        .expect("seed save should succeed");
 
     let updated = Task {
         id: "task-1".to_string(),
@@ -91,8 +92,8 @@ fn update_task_changes_title_type_and_pin() {
     };
 
     repository
-        .update_task(&updated)
-        .expect("update should succeed");
+        .save_tasks(&[updated])
+        .expect("second save should succeed");
 
     let loaded = repository.load_tasks().expect("load should succeed");
 
@@ -104,27 +105,22 @@ fn update_task_changes_title_type_and_pin() {
 }
 
 #[test]
-fn delete_task_removes_target_task() {
+fn save_tasks_removes_entries_omitted_from_next_write() {
     let temp_dir = make_temp_dir("delete");
     let repository = JsonTaskRepository::from_app_data_dir(&temp_dir);
+    let first = make_task("task-1", "first", false);
+    let second = make_task("task-2", "second", false);
 
     repository
-        .create_task(&make_task("task-1", "first", false))
-        .expect("first seed create should succeed");
+        .save_tasks(&[first, second.clone()])
+        .expect("seed save should succeed");
     repository
-        .create_task(&make_task("task-2", "second", false))
-        .expect("second seed create should succeed");
-
-    let remaining = repository
-        .delete_task("task-1")
-        .expect("delete should succeed");
-
-    assert_eq!(remaining.len(), 1);
-    assert_eq!(remaining[0].id, "task-2");
+        .save_tasks(&[second.clone()])
+        .expect("second save should succeed");
 
     let loaded = repository.load_tasks().expect("load should succeed");
     assert_eq!(loaded.len(), 1);
-    assert_eq!(loaded[0].id, "task-2");
+    assert_eq!(loaded[0].id, second.id);
     cleanup_temp_dir(&temp_dir);
 }
 
