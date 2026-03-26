@@ -30,11 +30,11 @@ describe("ExpandToggle", () => {
 
     expect(isValidElement(element)).toBe(true);
 
-    if (!isValidElement(element)) {
+    if (!isValidElement<{ onClick?: () => void }>(element)) {
       throw new Error("Expected ExpandToggle to return a button element.");
     }
 
-    const onClick = element.props.onClick as (() => void) | undefined;
+    const onClick = element.props.onClick;
     expect(onClick).toBeTypeOf("function");
 
     onClick?.();

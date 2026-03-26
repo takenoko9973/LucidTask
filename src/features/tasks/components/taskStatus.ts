@@ -1,4 +1,5 @@
 import type { Task } from "../../../shared/types/task";
+import { isDueTodayOrOverdue } from "../domain/taskOrdering";
 
 export type TaskIndicatorKind = "pinned" | "overdue-or-today" | "daily" | "future-deadline";
 
@@ -8,49 +9,33 @@ export interface TaskIndicator {
   className: string;
 }
 
-function toLocalDateValue(date: Date): number {
-  // 期限超過/当日判定を日単位で行うため、時刻を落とした比較キーを作る。
-  return date.getFullYear() * 10_000 + (date.getMonth() + 1) * 100 + date.getDate();
-}
+const INDICATOR_META: Record<TaskIndicatorKind, Pick<TaskIndicator, "label" | "className">> = {
+  pinned: { label: "Pinned", className: "task-card__indicator--pinned" },
+  "overdue-or-today": { label: "Due", className: "task-card__indicator--due" },
+  daily: { label: "Daily", className: "task-card__indicator--daily" },
+  "future-deadline": { label: "Upcoming", className: "task-card__indicator--future" },
+};
 
-function isDueTodayOrOverdue(deadlineAt: string, now: Date): boolean {
-  const deadlineDate = new Date(deadlineAt);
-  if (Number.isNaN(deadlineDate.getTime())) {
-    return false;
-  }
-
-  return toLocalDateValue(deadlineDate) <= toLocalDateValue(now);
+function buildIndicator(kind: TaskIndicatorKind): TaskIndicator {
+  return {
+    kind,
+    ...INDICATOR_META[kind],
+  };
 }
 
 export function getTaskIndicator(task: Task, now: Date = new Date()): TaskIndicator {
   // 表示優先度は仕様のソート優先度に合わせる（固定 > daily > 期限系）。
   if (task.isPinned) {
-    return {
-      kind: "pinned",
-      label: "Pinned",
-      className: "task-card__indicator--pinned",
-    };
+    return buildIndicator("pinned");
   }
 
   if (task.taskType.kind === "daily") {
-    return {
-      kind: "daily",
-      label: "Daily",
-      className: "task-card__indicator--daily",
-    };
+    return buildIndicator("daily");
   }
 
   if (isDueTodayOrOverdue(task.taskType.deadlineAt, now)) {
-    return {
-      kind: "overdue-or-today",
-      label: "Due",
-      className: "task-card__indicator--due",
-    };
+    return buildIndicator("overdue-or-today");
   }
 
-  return {
-    kind: "future-deadline",
-    label: "Upcoming",
-    className: "task-card__indicator--future",
-  };
+  return buildIndicator("future-deadline");
 }
