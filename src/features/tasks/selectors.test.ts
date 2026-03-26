@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import type { Task } from "../../shared/types/task";
 import {
   INITIAL_VISIBLE_TASK_COUNT,
-  MAX_EXPANDED_VISIBLE_TASK_COUNT,
   normalizeExpandedState,
   selectLayoutMeta,
   selectVisibleTasks,
@@ -78,9 +77,9 @@ describe("visibility and layout selectors", () => {
     expect(visible).toHaveLength(INITIAL_VISIBLE_TASK_COUNT);
   });
 
-  it("shows up to 9 tasks in expanded state", () => {
+  it("shows all tasks in expanded state", () => {
     const visible = selectVisibleTasks(tasks, true);
-    expect(visible).toHaveLength(MAX_EXPANDED_VISIBLE_TASK_COUNT);
+    expect(visible).toHaveLength(10);
   });
 
   it("sets scroll flag when expanded and task count exceeds 9", () => {

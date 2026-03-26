@@ -24,7 +24,8 @@ pub fn run() {
             ipc::delete_task,
             ipc::complete_task,
             ipc::set_task_pinned,
-            ipc::cleanup_completed_tasks
+            ipc::cleanup_completed_tasks,
+            ipc::open_task_dialog
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
