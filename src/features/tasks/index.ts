@@ -1,5 +1,15 @@
 export { taskApi, type TaskApi } from "./api/taskApi";
 export {
+  ExpandToggle,
+  TaskCard,
+  TaskList,
+  TasksWidget,
+  TasksWidgetView,
+  getTaskIndicator,
+  type TaskIndicator,
+  type TaskIndicatorKind,
+} from "./components";
+export {
   TasksProvider,
   createTasksActions,
   initialTasksState,
