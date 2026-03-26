@@ -24,6 +24,7 @@ function createApiMock() {
     completeTask: vi.fn<TaskApi["completeTask"]>(),
     setTaskPinned: vi.fn<TaskApi["setTaskPinned"]>(),
     cleanupCompletedTasks: vi.fn<TaskApi["cleanupCompletedTasks"]>(),
+    openTaskDialog: vi.fn<TaskApi["openTaskDialog"]>(),
   };
 }
 
@@ -166,5 +167,24 @@ describe("createTasksActions", () => {
     expect(harness.getState().isExpanded).toBe(true);
     expect(api.listTasks).not.toHaveBeenCalled();
     expect(api.createTask).not.toHaveBeenCalled();
+  });
+
+  it("opens create/edit dialogs without state mutation", async () => {
+    const api = createApiMock();
+    const initialState: TasksState = {
+      ...initialTasksState,
+      tasks: [createTask("1"), createTask("2")],
+      isExpanded: true,
+    };
+    const harness = createHarness(initialState);
+    const actions = createTasksActions(harness.dispatch, api);
+    api.openTaskDialog.mockResolvedValue(undefined);
+
+    await actions.openCreateDialog();
+    await actions.openEditDialog("2");
+
+    expect(api.openTaskDialog).toHaveBeenNthCalledWith(1, { mode: "create" });
+    expect(api.openTaskDialog).toHaveBeenNthCalledWith(2, { mode: "edit", taskId: "2" });
+    expect(harness.getState()).toEqual(initialState);
   });
 });

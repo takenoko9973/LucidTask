@@ -19,6 +19,7 @@ describe("TaskCard", () => {
 
     expect(markup).toContain('class="task-card__title"');
     expect(markup).toContain(`title="${longTitle}"`);
+    expect(markup).toContain('data-testid="edit-task-button"');
   });
 
   it("renders pinned indicator for pinned tasks", () => {

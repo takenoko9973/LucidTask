@@ -10,6 +10,7 @@ use crate::service::{
     CreateTaskInput as ServiceCreateTaskInput, TaskService, TaskServiceError, TaskStore,
     UpdateTaskInput as ServiceUpdateTaskInput,
 };
+use crate::system::window::{self, TaskDialogMode, TaskDialogRoute};
 
 type CommandResult<T> = Result<T, String>;
 
@@ -28,6 +29,13 @@ pub struct UpdateTaskInput {
     pub title: Option<String>,
     pub task_type: Option<TaskType>,
     pub is_pinned: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenTaskDialogInput {
+    pub mode: TaskDialogMode,
+    pub task_id: Option<String>,
 }
 
 pub struct AppState {
@@ -90,6 +98,24 @@ fn to_service_update_input(input: UpdateTaskInput) -> ServiceUpdateTaskInput {
     }
 }
 
+fn validate_open_dialog_input(input: OpenTaskDialogInput) -> CommandResult<TaskDialogRoute> {
+    let normalized_task_id = input.task_id.map(|task_id| task_id.trim().to_string());
+
+    if matches!(input.mode, TaskDialogMode::Edit)
+        && normalized_task_id
+            .as_ref()
+            .map(|task_id| task_id.is_empty())
+            .unwrap_or(true)
+    {
+        return Err("taskId is required when mode is edit".to_string());
+    }
+
+    Ok(TaskDialogRoute {
+        mode: input.mode,
+        task_id: normalized_task_id.filter(|task_id| !task_id.is_empty()),
+    })
+}
+
 fn with_task_service<T>(
     state: &State<'_, AppState>,
     operation: impl FnOnce(&mut TaskService<JsonTaskStore>) -> Result<T, TaskServiceError>,
@@ -146,4 +172,39 @@ pub fn cleanup_completed_tasks(state: State<'_, AppState>) -> CommandResult<usiz
     with_task_service(&state, |task_service| {
         task_service.cleanup_completed_tasks()
     })
+}
+
+#[tauri::command]
+pub fn open_task_dialog(app: AppHandle, input: OpenTaskDialogInput) -> CommandResult<()> {
+    let route = validate_open_dialog_input(input)?;
+    window::open_task_dialog_window(&app, route).map_err(|error| error.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{validate_open_dialog_input, OpenTaskDialogInput};
+    use crate::system::window::TaskDialogMode;
+
+    #[test]
+    fn open_dialog_validation_accepts_create_without_task_id() {
+        let input = OpenTaskDialogInput {
+            mode: TaskDialogMode::Create,
+            task_id: None,
+        };
+
+        let validated = validate_open_dialog_input(input).expect("create should be valid");
+        assert_eq!(validated.mode, TaskDialogMode::Create);
+        assert_eq!(validated.task_id, None);
+    }
+
+    #[test]
+    fn open_dialog_validation_rejects_edit_without_task_id() {
+        let input = OpenTaskDialogInput {
+            mode: TaskDialogMode::Edit,
+            task_id: Some(" ".to_string()),
+        };
+
+        let error = validate_open_dialog_input(input).expect_err("edit without id should fail");
+        assert!(error.contains("taskId is required"));
+    }
 }

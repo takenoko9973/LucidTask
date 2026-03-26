@@ -25,4 +25,6 @@ export interface TasksActions {
   setTaskPinned: (id: TaskId, isPinned: boolean) => Promise<Task>;
   cleanupCompletedTasks: () => Promise<number>;
   toggleExpand: () => void;
+  openCreateDialog: () => Promise<void>;
+  openEditDialog: (id: TaskId) => Promise<void>;
 }

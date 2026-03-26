@@ -83,4 +83,14 @@ describe("taskApi", () => {
     expect(invokeMock).toHaveBeenCalledWith(TASK_COMMANDS.cleanupCompletedTasks);
     expect(removedCount).toBe(2);
   });
+
+  it("calls open_task_dialog with mode payload", async () => {
+    invokeMock.mockResolvedValueOnce(undefined);
+
+    await taskApi.openTaskDialog({ mode: "create" });
+
+    expect(invokeMock).toHaveBeenCalledWith(TASK_COMMANDS.openTaskDialog, {
+      mode: "create",
+    });
+  });
 });

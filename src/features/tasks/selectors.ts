@@ -16,8 +16,12 @@ export function sortTasks(tasks: readonly Task[], now: Date = new Date()): Task[
 }
 
 export function selectVisibleTasks(sortedTasks: readonly Task[], isExpanded: boolean): Task[] {
-  const visibleCount = isExpanded ? MAX_EXPANDED_VISIBLE_TASK_COUNT : INITIAL_VISIBLE_TASK_COUNT;
-  return sortedTasks.slice(0, visibleCount);
+  if (isExpanded) {
+    // 展開時は全件を返し、9件上限はCSSスクロール領域で制御する。
+    return [...sortedTasks];
+  }
+
+  return sortedTasks.slice(0, INITIAL_VISIBLE_TASK_COUNT);
 }
 
 export function selectLayoutMeta(totalCount: number, isExpanded: boolean): LayoutMeta {

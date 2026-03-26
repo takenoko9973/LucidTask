@@ -2,11 +2,14 @@ export { taskApi, type TaskApi } from "./api/taskApi";
 export {
   ExpandToggle,
   TaskCard,
+  TaskDialog,
   TaskList,
   TasksWidget,
   TasksWidgetView,
+  parseTaskDialogRoute,
   getTaskIndicator,
   type TaskIndicator,
+  type TaskDialogRoute,
   type TaskIndicatorKind,
 } from "./components";
 export {
