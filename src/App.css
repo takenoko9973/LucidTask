@@ -1,7 +1,7 @@
 :root {
   font-family: "Segoe UI", "Yu Gothic UI", "Noto Sans JP", sans-serif;
   color: #1f1a12;
-  background-color: #ece7dc;
+  background-color: transparent;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -20,12 +20,14 @@ body,
 #root {
   margin: 0;
   min-height: 100%;
+  background: transparent;
 }
 
 body {
   display: flex;
   justify-content: center;
   padding: 18px 14px;
+  overflow: hidden;
 }
 
 .container {
