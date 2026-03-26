@@ -5,8 +5,6 @@ use std::fmt::{Display, Formatter};
 pub enum RepositoryError {
     Io(std::io::Error),
     Serde(serde_json::Error),
-    TaskNotFound(String),
-    DuplicateTaskId(String),
     InvalidData(String),
 }
 
@@ -15,8 +13,6 @@ impl Display for RepositoryError {
         match self {
             Self::Io(err) => write!(f, "I/O error: {err}"),
             Self::Serde(err) => write!(f, "JSON serialization error: {err}"),
-            Self::TaskNotFound(id) => write!(f, "Task not found: {id}"),
-            Self::DuplicateTaskId(id) => write!(f, "Task ID already exists: {id}"),
             Self::InvalidData(message) => write!(f, "Invalid repository data: {message}"),
         }
     }
@@ -27,7 +23,7 @@ impl Error for RepositoryError {
         match self {
             Self::Io(err) => Some(err),
             Self::Serde(err) => Some(err),
-            Self::TaskNotFound(_) | Self::DuplicateTaskId(_) | Self::InvalidData(_) => None,
+            Self::InvalidData(_) => None,
         }
     }
 }

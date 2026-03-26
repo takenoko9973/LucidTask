@@ -21,12 +21,16 @@ impl JsonTaskRepository {
         }
     }
 
+    #[cfg(test)]
+    #[allow(dead_code)]
     pub fn from_tasks_file_path(tasks_file_path: impl Into<PathBuf>) -> Self {
         Self {
             tasks_file_path: tasks_file_path.into(),
         }
     }
 
+    #[cfg(test)]
+    #[allow(dead_code)]
     pub fn tasks_file_path(&self) -> &Path {
         &self.tasks_file_path
     }
@@ -54,48 +58,6 @@ impl JsonTaskRepository {
             .collect();
 
         self.write_tasks_atomically(&incomplete_tasks)
-    }
-
-    pub fn create_task(&self, task: &Task) -> Result<Vec<Task>, RepositoryError> {
-        let mut tasks = self.load_tasks()?;
-
-        if tasks.iter().any(|candidate| candidate.id == task.id) {
-            return Err(RepositoryError::DuplicateTaskId(task.id.clone()));
-        }
-
-        tasks.push(task.clone());
-        self.save_tasks(&tasks)?;
-
-        Ok(tasks)
-    }
-
-    pub fn update_task(&self, task: &Task) -> Result<Vec<Task>, RepositoryError> {
-        let mut tasks = self.load_tasks()?;
-
-        let index = tasks
-            .iter()
-            .position(|candidate| candidate.id == task.id)
-            .ok_or_else(|| RepositoryError::TaskNotFound(task.id.clone()))?;
-
-        tasks[index] = task.clone();
-        self.save_tasks(&tasks)?;
-
-        Ok(tasks)
-    }
-
-    pub fn delete_task(&self, id: &str) -> Result<Vec<Task>, RepositoryError> {
-        let mut tasks = self.load_tasks()?;
-        let before_len = tasks.len();
-
-        tasks.retain(|task| task.id != id);
-
-        if tasks.len() == before_len {
-            return Err(RepositoryError::TaskNotFound(id.to_string()));
-        }
-
-        self.save_tasks(&tasks)?;
-
-        Ok(tasks)
     }
 
     fn write_tasks_atomically(&self, tasks: &[Task]) -> Result<(), RepositoryError> {

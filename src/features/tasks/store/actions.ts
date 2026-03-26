@@ -1,5 +1,6 @@
 import type { Dispatch } from "react";
 
+import type { Task } from "../../../shared/types/task";
 import type { TaskApi } from "../api/taskApi";
 import type { TasksAction } from "./reducer";
 import type { TasksActions } from "./types";
@@ -29,6 +30,28 @@ async function runManagedOperation<TResult>(
   }
 }
 
+async function runUpsertTaskOperation(
+  dispatch: Dispatch<TasksAction>,
+  operation: () => Promise<Task>,
+): Promise<Task> {
+  return runManagedOperation(dispatch, async () => {
+    const task = await operation();
+    dispatch({ type: "tasks/upsertTask", task });
+    return task;
+  });
+}
+
+async function runReplaceTasksOperation(
+  dispatch: Dispatch<TasksAction>,
+  operation: () => Promise<Task[]>,
+): Promise<Task[]> {
+  return runManagedOperation(dispatch, async () => {
+    const tasks = await operation();
+    dispatch({ type: "tasks/replaceTasks", tasks });
+    return tasks;
+  });
+}
+
 export function createTasksActions(dispatch: Dispatch<TasksAction>, api: TaskApi): TasksActions {
   return {
     async initialize() {
@@ -39,39 +62,19 @@ export function createTasksActions(dispatch: Dispatch<TasksAction>, api: TaskApi
       });
     },
     async createTask(input) {
-      return runManagedOperation(dispatch, async () => {
-        const task = await api.createTask(input);
-        dispatch({ type: "tasks/upsertTask", task });
-        return task;
-      });
+      return runUpsertTaskOperation(dispatch, () => api.createTask(input));
     },
     async updateTask(input) {
-      return runManagedOperation(dispatch, async () => {
-        const task = await api.updateTask(input);
-        dispatch({ type: "tasks/upsertTask", task });
-        return task;
-      });
+      return runUpsertTaskOperation(dispatch, () => api.updateTask(input));
     },
     async deleteTask(id) {
-      return runManagedOperation(dispatch, async () => {
-        const tasks = await api.deleteTask(id);
-        dispatch({ type: "tasks/replaceTasks", tasks });
-        return tasks;
-      });
+      return runReplaceTasksOperation(dispatch, () => api.deleteTask(id));
     },
     async completeTask(id) {
-      return runManagedOperation(dispatch, async () => {
-        const tasks = await api.completeTask(id);
-        dispatch({ type: "tasks/replaceTasks", tasks });
-        return tasks;
-      });
+      return runReplaceTasksOperation(dispatch, () => api.completeTask(id));
     },
     async setTaskPinned(id, isPinned) {
-      return runManagedOperation(dispatch, async () => {
-        const task = await api.setTaskPinned(id, isPinned);
-        dispatch({ type: "tasks/upsertTask", task });
-        return task;
-      });
+      return runUpsertTaskOperation(dispatch, () => api.setTaskPinned(id, isPinned));
     },
     async cleanupCompletedTasks() {
       // cleanup は削除件数のみ返す契約のため tasks 配列は更新しない。
