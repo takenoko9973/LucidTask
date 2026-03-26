@@ -83,5 +83,11 @@ export function createTasksActions(dispatch: Dispatch<TasksAction>, api: TaskApi
     toggleExpand() {
       dispatch({ type: "tasks/toggleExpand" });
     },
+    async openCreateDialog() {
+      await api.openTaskDialog({ mode: "create" });
+    },
+    async openEditDialog(id) {
+      await api.openTaskDialog({ mode: "edit", taskId: id });
+    },
   };
 }

@@ -1,6 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 
-import { TASK_COMMANDS, type TaskCommandPayloads, type TaskCommandResponses } from "../../../shared/ipc";
+import {
+  TASK_COMMANDS,
+  type OpenTaskDialogInput,
+  type TaskCommandPayloads,
+  type TaskCommandResponses,
+} from "../../../shared/ipc";
 import type { CreateTaskInput, Task, TaskId, UpdateTaskInput } from "../../../shared/types/task";
 
 type TaskCommand = keyof TaskCommandPayloads & keyof TaskCommandResponses;
@@ -25,6 +30,7 @@ export interface TaskApi {
   completeTask: (id: TaskId) => Promise<Task[]>;
   setTaskPinned: (id: TaskId, isPinned: boolean) => Promise<Task>;
   cleanupCompletedTasks: () => Promise<number>;
+  openTaskDialog: (input: OpenTaskDialogInput) => Promise<void>;
 }
 
 export const taskApi: TaskApi = {
@@ -48,5 +54,8 @@ export const taskApi: TaskApi = {
   },
   async cleanupCompletedTasks() {
     return invokeTaskCommand(TASK_COMMANDS.cleanupCompletedTasks);
+  },
+  async openTaskDialog(input) {
+    return invokeTaskCommand(TASK_COMMANDS.openTaskDialog, input);
   },
 };

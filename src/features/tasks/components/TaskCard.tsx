@@ -4,9 +4,10 @@ import { getTaskIndicator } from "./taskStatus";
 interface TaskCardProps {
   task: Task;
   now?: Date;
+  onEdit?: (task: Task) => void;
 }
 
-export function TaskCard({ task, now }: TaskCardProps) {
+export function TaskCard({ task, now, onEdit }: TaskCardProps) {
   const indicator = getTaskIndicator(task, now);
 
   return (
@@ -18,6 +19,14 @@ export function TaskCard({ task, now }: TaskCardProps) {
       <p className="task-card__title" title={task.title}>
         {task.title}
       </p>
+      <button
+        type="button"
+        className="task-card__edit"
+        data-testid="edit-task-button"
+        onClick={() => onEdit?.(task)}
+      >
+        Edit
+      </button>
     </article>
   );
 }
