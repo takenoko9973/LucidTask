@@ -1,0 +1,58 @@
+{
+  "widget": {
+    "eyebrow": "タスク",
+    "addTask": "追加",
+    "noActiveTitle": "未完了タスクなし",
+    "taskSingular": "件",
+    "taskPlural": "件",
+    "emptyMessage": "未完了タスクはありません。追加して始めましょう。",
+    "loading": "タスクを読み込み中...",
+    "showMore": "さらに表示",
+    "showLess": "折りたたむ"
+  },
+  "indicator": {
+    "completed": "完了",
+    "overdueOrToday": "期限",
+    "daily": "Daily",
+    "futureDeadline": "予定"
+  },
+  "deadline": {
+    "overdue": "期限超過",
+    "days": "あと{count}日",
+    "hours": "あと{count}時間",
+    "minutes": "あと{count}分"
+  },
+  "card": {
+    "completeAria": "完了にする",
+    "restoreAria": "未完了に戻す",
+    "pinnedAria": "固定済み"
+  },
+  "dialog": {
+    "modeCreate": "タスク追加",
+    "modeEdit": "タスク編集",
+    "titleLabel": "タイトル",
+    "typeLegend": "タイプ",
+    "typeDaily": "Daily",
+    "typeDeadline": "期限あり",
+    "deadlineLabel": "期限",
+    "pinLabel": "このタスクを固定する",
+    "cancel": "キャンセル",
+    "save": "保存",
+    "saving": "保存中...",
+    "closeAria": "タスクダイアログを閉じる",
+    "taskIdRequired": "編集モードでは taskId が必要です。",
+    "requiredTitle": "タイトルは必須です。",
+    "requiredDeadline": "期限ありタスクでは期限が必須です。",
+    "taskNotFound": "タスクが見つかりません: {taskId}"
+  },
+  "nativeMenu": {
+    "appAutostart": "自動起動",
+    "appLanguage": "言語",
+    "appLanguageJa": "日本語",
+    "appLanguageEn": "English",
+    "appQuit": "終了",
+    "taskPinOn": "Pinする",
+    "taskPinOff": "Pin解除",
+    "taskEdit": "編集画面表示"
+  }
+}

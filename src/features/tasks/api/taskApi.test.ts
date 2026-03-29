@@ -53,8 +53,30 @@ describe("taskApi", () => {
 
     const result = await taskApi.createTask(payload);
 
-    expect(invokeMock).toHaveBeenCalledWith(TASK_COMMANDS.createTask, payload);
+    expect(invokeMock).toHaveBeenCalledWith(TASK_COMMANDS.createTask, { input: payload });
     expect(result).toEqual(createdTask);
+  });
+
+  it("calls update_task with input wrapper payload", async () => {
+    const updatedTask: Task = {
+      id: "task-3",
+      title: "updated",
+      taskType: { kind: "daily" },
+      isPinned: false,
+    };
+    const payload = {
+      id: "task-3",
+      title: "updated",
+      isPinned: false,
+    };
+    invokeMock.mockResolvedValueOnce(updatedTask);
+
+    const result = await taskApi.updateTask(payload);
+
+    expect(invokeMock).toHaveBeenCalledWith(TASK_COMMANDS.updateTask, {
+      input: payload,
+    });
+    expect(result).toEqual(updatedTask);
   });
 
   it("calls set_task_pinned with id and isPinned", async () => {
@@ -75,6 +97,39 @@ describe("taskApi", () => {
     expect(result).toEqual(updatedTask);
   });
 
+  it("calls complete_task with raw payload (no input wrapper)", async () => {
+    // 仕様: complete_task は { input } ではなく { id } を直接渡す。
+    const completedTask: Task = {
+      id: "task-4",
+      title: "done",
+      taskType: { kind: "daily" },
+      isPinned: false,
+      completedAt: "2026-03-29T10:00:00+09:00",
+    };
+    invokeMock.mockResolvedValueOnce([completedTask]);
+
+    const result = await taskApi.completeTask("task-4");
+
+    expect(invokeMock).toHaveBeenCalledWith(TASK_COMMANDS.completeTask, { id: "task-4" });
+    expect(result).toEqual([completedTask]);
+  });
+
+  it("calls delete_task with raw payload (no input wrapper)", async () => {
+    // 仕様: delete_task も complete_task と同様に id 直渡し契約。
+    const taskAfterDelete: Task = {
+      id: "task-5",
+      title: "keep",
+      taskType: { kind: "daily" },
+      isPinned: false,
+    };
+    invokeMock.mockResolvedValueOnce([taskAfterDelete]);
+
+    const result = await taskApi.deleteTask("task-4");
+
+    expect(invokeMock).toHaveBeenCalledWith(TASK_COMMANDS.deleteTask, { id: "task-4" });
+    expect(result).toEqual([taskAfterDelete]);
+  });
+
   it("calls cleanup_completed_tasks without payload", async () => {
     invokeMock.mockResolvedValueOnce(2);
 
@@ -82,15 +137,5 @@ describe("taskApi", () => {
 
     expect(invokeMock).toHaveBeenCalledWith(TASK_COMMANDS.cleanupCompletedTasks);
     expect(removedCount).toBe(2);
-  });
-
-  it("calls open_task_dialog with mode payload", async () => {
-    invokeMock.mockResolvedValueOnce(undefined);
-
-    await taskApi.openTaskDialog({ mode: "create" });
-
-    expect(invokeMock).toHaveBeenCalledWith(TASK_COMMANDS.openTaskDialog, {
-      mode: "create",
-    });
   });
 });

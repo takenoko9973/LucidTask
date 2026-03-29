@@ -15,6 +15,7 @@ export interface Task {
   title: string;
   taskType: TaskType;
   isPinned: boolean;
+  completedAt?: IsoDateTimeString | null;
 }
 
 export interface CreateTaskInput {
@@ -29,4 +30,3 @@ export interface UpdateTaskInput {
   taskType?: TaskType;
   isPinned?: boolean;
 }
-

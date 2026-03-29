@@ -2,13 +2,34 @@ import { invoke } from "@tauri-apps/api/core";
 
 import {
   TASK_COMMANDS,
-  type OpenTaskDialogInput,
   type TaskCommandPayloads,
   type TaskCommandResponses,
 } from "../../../shared/ipc";
 import type { CreateTaskInput, Task, TaskId, UpdateTaskInput } from "../../../shared/types/task";
 
 type TaskCommand = keyof TaskCommandPayloads & keyof TaskCommandResponses;
+type TaskPayloadEnvelopeMode = "raw" | "input";
+
+const TASK_COMMAND_PAYLOAD_MODE: Record<TaskCommand, TaskPayloadEnvelopeMode> = {
+  [TASK_COMMANDS.listTasks]: "raw",
+  [TASK_COMMANDS.createTask]: "input",
+  [TASK_COMMANDS.updateTask]: "input",
+  [TASK_COMMANDS.deleteTask]: "raw",
+  [TASK_COMMANDS.completeTask]: "raw",
+  [TASK_COMMANDS.setTaskPinned]: "raw",
+  [TASK_COMMANDS.cleanupCompletedTasks]: "raw",
+};
+
+function toInvokePayload<TCommand extends TaskCommand>(
+  command: TCommand,
+  payload: TaskCommandPayloads[TCommand],
+): Record<string, unknown> {
+  if (TASK_COMMAND_PAYLOAD_MODE[command] === "input") {
+    return { input: payload };
+  }
+
+  return payload as Record<string, unknown>;
+}
 
 async function invokeTaskCommand<TCommand extends TaskCommand>(
   command: TCommand,
@@ -19,7 +40,7 @@ async function invokeTaskCommand<TCommand extends TaskCommand>(
     return invoke<TaskCommandResponses[TCommand]>(command);
   }
 
-  return invoke<TaskCommandResponses[TCommand]>(command, payload as Record<string, unknown>);
+  return invoke<TaskCommandResponses[TCommand]>(command, toInvokePayload(command, payload));
 }
 
 export interface TaskApi {
@@ -30,7 +51,6 @@ export interface TaskApi {
   completeTask: (id: TaskId) => Promise<Task[]>;
   setTaskPinned: (id: TaskId, isPinned: boolean) => Promise<Task>;
   cleanupCompletedTasks: () => Promise<number>;
-  openTaskDialog: (input: OpenTaskDialogInput) => Promise<void>;
 }
 
 export const taskApi: TaskApi = {
@@ -54,8 +74,5 @@ export const taskApi: TaskApi = {
   },
   async cleanupCompletedTasks() {
     return invokeTaskCommand(TASK_COMMANDS.cleanupCompletedTasks);
-  },
-  async openTaskDialog(input) {
-    return invokeTaskCommand(TASK_COMMANDS.openTaskDialog, input);
   },
 };

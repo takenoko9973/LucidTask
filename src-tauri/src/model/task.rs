@@ -19,7 +19,6 @@ pub struct Task {
     pub title: String,
     pub task_type: TaskType,
     pub is_pinned: bool,
-    // 完了時刻はメモリ専用。永続化JSONとIPCレスポンスには含めない。
-    #[serde(skip)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub completed_at: Option<DateTime<Local>>,
 }

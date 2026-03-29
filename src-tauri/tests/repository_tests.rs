@@ -5,7 +5,6 @@ mod repository;
 
 use std::env;
 use std::fs;
-use std::path::Path;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -26,42 +25,55 @@ fn make_task(id: &str, title: &str, is_pinned: bool) -> Task {
     }
 }
 
-fn make_temp_dir(test_name: &str) -> PathBuf {
-    let millis = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("system time before UNIX_EPOCH")
-        .as_millis();
-
-    let dir = env::temp_dir().join(format!(
-        "lucid-task-repository-{test_name}-{}-{millis}",
-        std::process::id()
-    ));
-
-    fs::create_dir_all(&dir).expect("failed to create temp directory");
-    dir
+struct TestDir {
+    path: PathBuf,
 }
 
-fn cleanup_temp_dir(path: &Path) {
-    if path.exists() {
-        fs::remove_dir_all(path).expect("failed to remove temp directory");
+impl TestDir {
+    fn new(test_name: &str) -> Self {
+        let millis = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time before UNIX_EPOCH")
+            .as_millis();
+
+        let path = env::temp_dir().join(format!(
+            "lucid-task-repository-{test_name}-{}-{millis}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&path).expect("failed to create temp directory");
+
+        Self { path }
+    }
+
+    fn path(&self) -> &PathBuf {
+        &self.path
+    }
+}
+
+impl Drop for TestDir {
+    fn drop(&mut self) {
+        if self.path.exists() {
+            let _ = fs::remove_dir_all(&self.path);
+        }
     }
 }
 
 #[test]
 fn load_tasks_returns_empty_when_file_does_not_exist() {
-    let temp_dir = make_temp_dir("load-empty");
-    let repository = JsonTaskRepository::from_app_data_dir(&temp_dir);
+    // 仕様: 永続ファイル未作成時は空配列を返す。
+    let temp_dir = TestDir::new("load-empty");
+    let repository = JsonTaskRepository::from_app_data_dir(temp_dir.path());
 
     let loaded = repository.load_tasks().expect("load should succeed");
 
     assert!(loaded.is_empty());
-    cleanup_temp_dir(&temp_dir);
 }
 
 #[test]
 fn save_tasks_persists_and_load_returns_same_tasks() {
-    let temp_dir = make_temp_dir("create-load");
-    let repository = JsonTaskRepository::from_app_data_dir(&temp_dir);
+    // 仕様: save 後の load で同一内容を再取得できる。
+    let temp_dir = TestDir::new("create-load");
+    let repository = JsonTaskRepository::from_app_data_dir(temp_dir.path());
     let task = make_task("task-1", "first", false);
 
     repository
@@ -71,13 +83,13 @@ fn save_tasks_persists_and_load_returns_same_tasks() {
 
     assert_eq!(loaded.len(), 1);
     assert_eq!(loaded[0].id, "task-1");
-    cleanup_temp_dir(&temp_dir);
 }
 
 #[test]
 fn save_tasks_overwrites_existing_entries() {
-    let temp_dir = make_temp_dir("update");
-    let repository = JsonTaskRepository::from_app_data_dir(&temp_dir);
+    // 仕様: 同じ id を再保存した場合は最新内容で上書きされる。
+    let temp_dir = TestDir::new("update");
+    let repository = JsonTaskRepository::from_app_data_dir(temp_dir.path());
     let original = make_task("task-1", "original", false);
     repository
         .save_tasks(&[original])
@@ -101,13 +113,13 @@ fn save_tasks_overwrites_existing_entries() {
     assert_eq!(loaded[0].title, "updated");
     assert!(loaded[0].is_pinned);
     assert_eq!(loaded[0].task_type, TaskType::Daily);
-    cleanup_temp_dir(&temp_dir);
 }
 
 #[test]
 fn save_tasks_removes_entries_omitted_from_next_write() {
-    let temp_dir = make_temp_dir("delete");
-    let repository = JsonTaskRepository::from_app_data_dir(&temp_dir);
+    // 仕様: 次回 save に含まれないタスクは永続データから削除される。
+    let temp_dir = TestDir::new("delete");
+    let repository = JsonTaskRepository::from_app_data_dir(temp_dir.path());
     let first = make_task("task-1", "first", false);
     let second = make_task("task-2", "second", false);
 
@@ -121,13 +133,13 @@ fn save_tasks_removes_entries_omitted_from_next_write() {
     let loaded = repository.load_tasks().expect("load should succeed");
     assert_eq!(loaded.len(), 1);
     assert_eq!(loaded[0].id, second.id);
-    cleanup_temp_dir(&temp_dir);
 }
 
 #[test]
-fn save_tasks_excludes_completed_tasks() {
-    let temp_dir = make_temp_dir("exclude-completed");
-    let repository = JsonTaskRepository::from_app_data_dir(&temp_dir);
+fn save_tasks_persists_completed_tasks() {
+    // 仕様: completed_at を持つ完了タスクも通常タスクと同様に保存・復元される。
+    let temp_dir = TestDir::new("persist-completed");
+    let repository = JsonTaskRepository::from_app_data_dir(temp_dir.path());
 
     let mut completed_task = make_task("task-1", "completed", false);
     completed_task.completed_at = Some(Local::now());
@@ -139,15 +151,18 @@ fn save_tasks_excludes_completed_tasks() {
 
     let loaded = repository.load_tasks().expect("load should succeed");
 
-    assert_eq!(loaded.len(), 1);
-    assert_eq!(loaded[0].id, active_task.id);
-    cleanup_temp_dir(&temp_dir);
+    assert_eq!(loaded.len(), 2);
+    assert!(loaded.iter().any(|task| task.id == active_task.id));
+    assert!(loaded
+        .iter()
+        .any(|task| task.id == "task-1" && task.completed_at.is_some()));
 }
 
 #[test]
 fn load_tasks_returns_error_when_json_is_broken() {
-    let temp_dir = make_temp_dir("broken-json");
-    let repository = JsonTaskRepository::from_app_data_dir(&temp_dir);
+    // 仕様: 破損JSONは Serde エラーとして返す。
+    let temp_dir = TestDir::new("broken-json");
+    let repository = JsonTaskRepository::from_app_data_dir(temp_dir.path());
 
     fs::write(repository.tasks_file_path(), "{ this is not valid json }")
         .expect("failed to write invalid json");
@@ -155,5 +170,4 @@ fn load_tasks_returns_error_when_json_is_broken() {
     let result = repository.load_tasks();
 
     assert!(matches!(result, Err(RepositoryError::Serde(_))));
-    cleanup_temp_dir(&temp_dir);
 }

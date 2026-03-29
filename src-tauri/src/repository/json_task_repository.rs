@@ -50,14 +50,7 @@ impl JsonTaskRepository {
     }
 
     pub fn save_tasks(&self, tasks: &[Task]) -> Result<(), RepositoryError> {
-        // 完了済みタスクは仕様上JSON保存対象外のため除外して書き込む。
-        let incomplete_tasks: Vec<Task> = tasks
-            .iter()
-            .filter(|task| task.completed_at.is_none())
-            .cloned()
-            .collect();
-
-        self.write_tasks_atomically(&incomplete_tasks)
+        self.write_tasks_atomically(tasks)
     }
 
     fn write_tasks_atomically(&self, tasks: &[Task]) -> Result<(), RepositoryError> {
