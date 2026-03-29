@@ -24,7 +24,13 @@ fn deadline_task_type_serializes_as_discriminated_union() {
     let serialized = serde_json::to_value(task_type).expect("task_type should serialize");
 
     assert_eq!(serialized["kind"], json!("deadline"));
-    assert_eq!(serialized["deadlineAt"], json!(deadline.to_rfc3339()));
+    // 仕様: タイムゾーン表記は `Z` / `+00:00` の揺れがあるため、絶対時刻で比較する。
+    let serialized_deadline = serialized["deadlineAt"]
+        .as_str()
+        .expect("deadlineAt should be serialized as string");
+    let actual = chrono::DateTime::parse_from_rfc3339(serialized_deadline)
+        .expect("deadlineAt should be RFC3339");
+    assert_eq!(actual.timestamp(), deadline.timestamp());
 }
 
 #[test]
