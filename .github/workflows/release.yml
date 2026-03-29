@@ -63,7 +63,7 @@ jobs:
           releaseDraft: true
           prerelease: false
 
-      - name: Create portable ZIP (Windows exe only)
+      - name: Create portable ZIP (Windows)
         if: matrix.platform == 'windows-latest'
         shell: pwsh
         run: |
@@ -71,7 +71,19 @@ jobs:
           if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
           Compress-Archive -Path "src-tauri/target/release/lucid-task.exe" -DestinationPath $zipPath
 
-      - name: Upload portable ZIP to release
+      - name: Create portable ZIP (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        shell: bash
+        run: |
+          zip -j "src-tauri/target/release/lucid-task-portable-${{ github.ref_name }}-linux-x64.zip" "src-tauri/target/release/lucid-task"
+
+      - name: Create portable ZIP (macOS)
+        if: matrix.platform == 'macos-latest'
+        shell: bash
+        run: |
+          zip -j "src-tauri/target/release/lucid-task-portable-${{ github.ref_name }}-macos-universal.zip" "src-tauri/target/release/lucid-task"
+
+      - name: Upload portable ZIP to release (Windows)
         if: matrix.platform == 'windows-latest'
         uses: softprops/action-gh-release@v2
         with:
@@ -79,5 +91,27 @@ jobs:
           draft: true
           files: |
             src-tauri/target/release/lucid-task-portable-${{ github.ref_name }}-windows-x64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload portable ZIP to release (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          draft: true
+          files: |
+            src-tauri/target/release/lucid-task-portable-${{ github.ref_name }}-linux-x64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload portable ZIP to release (macOS)
+        if: matrix.platform == 'macos-latest'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          draft: true
+          files: |
+            src-tauri/target/release/lucid-task-portable-${{ github.ref_name }}-macos-universal.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -55,8 +55,7 @@ cargo test --manifest-path src-tauri/Cargo.toml
 - トリガー: `v*` タグ push（例: `v0.2.0`）
 - 実行内容:
   - Ubuntu / Windows / macOS で Tauri バンドルをビルド（installer 系）
-  - Updater 用アーティファクト（v1 互換 zip）を生成
-  - Windows では `lucid-task.exe` 単体を zip 化した portable 版も生成
+  - 各OSで portable zip（実行バイナリ単体）を生成
   - GitHub Release（Draft）を自動作成
 
 ### 生成される成果物（例）
@@ -66,8 +65,9 @@ cargo test --manifest-path src-tauri/Cargo.toml
   - macOS: `app` / `dmg`
   - Linux: `deb` / `rpm` / `appimage`
 - zip 版
-  - Updater 用 zip（`createUpdaterArtifacts = "v1Compatible"`）
-  - Windows portable zip（`lucid-task.exe` 単体）
+  - Windows portable zip（`lucid-task.exe`）
+  - Linux portable zip（`lucid-task`）
+  - macOS portable zip（`lucid-task`）
 
 ## リリース手順
 
