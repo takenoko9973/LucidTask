@@ -1,0 +1,58 @@
+{
+  "widget": {
+    "eyebrow": "Tasks",
+    "addTask": "Add task",
+    "noActiveTitle": "No active tasks",
+    "taskSingular": "task",
+    "taskPlural": "tasks",
+    "emptyMessage": "No active tasks. Add one to keep the widget alive and useful.",
+    "loading": "Loading tasks...",
+    "showMore": "Show more",
+    "showLess": "Show less"
+  },
+  "indicator": {
+    "completed": "Done",
+    "overdueOrToday": "Due",
+    "daily": "Daily",
+    "futureDeadline": "Upcoming"
+  },
+  "deadline": {
+    "overdue": "Overdue",
+    "days": "{count} day{plural} left",
+    "hours": "{count} hour{plural} left",
+    "minutes": "{count} minute{plural} left"
+  },
+  "card": {
+    "completeAria": "Complete task",
+    "restoreAria": "Restore task",
+    "pinnedAria": "Pinned"
+  },
+  "dialog": {
+    "modeCreate": "Add task",
+    "modeEdit": "Edit task",
+    "titleLabel": "Title",
+    "typeLegend": "Type",
+    "typeDaily": "Daily",
+    "typeDeadline": "Deadline",
+    "deadlineLabel": "Deadline",
+    "pinLabel": "Pin this task",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving...",
+    "closeAria": "Close task dialog",
+    "taskIdRequired": "taskId is required in edit mode.",
+    "requiredTitle": "Task title is required.",
+    "requiredDeadline": "Deadline is required for deadline tasks.",
+    "taskNotFound": "Task not found: {taskId}"
+  },
+  "nativeMenu": {
+    "appAutostart": "Auto start",
+    "appLanguage": "Language",
+    "appLanguageJa": "Japanese",
+    "appLanguageEn": "English",
+    "appQuit": "Quit",
+    "taskPinOn": "Pin",
+    "taskPinOff": "Unpin",
+    "taskEdit": "Open edit dialog"
+  }
+}
