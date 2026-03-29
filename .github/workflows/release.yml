@@ -62,3 +62,22 @@ jobs:
           releaseBody: "Automated release for ${{ github.ref_name }}"
           releaseDraft: true
           prerelease: false
+
+      - name: Create portable ZIP (Windows exe only)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          $zipPath = "src-tauri/target/release/lucid-task-portable-${{ github.ref_name }}-windows-x64.zip"
+          if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+          Compress-Archive -Path "src-tauri/target/release/lucid-task.exe" -DestinationPath $zipPath
+
+      - name: Upload portable ZIP to release
+        if: matrix.platform == 'windows-latest'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          draft: true
+          files: |
+            src-tauri/target/release/lucid-task-portable-${{ github.ref_name }}-windows-x64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
