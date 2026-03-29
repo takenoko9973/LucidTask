@@ -17,6 +17,11 @@ pub fn run() {
             system::initialize(&app.handle())?;
             Ok(())
         })
+        .on_menu_event(|app, event| {
+            if let Err(error) = ipc::handle_native_menu_event(app, &event) {
+                eprintln!("native context menu handling failed: {error}");
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             ipc::list_tasks,
             ipc::create_task,
@@ -25,7 +30,10 @@ pub fn run() {
             ipc::complete_task,
             ipc::set_task_pinned,
             ipc::cleanup_completed_tasks,
-            ipc::open_task_dialog
+            ipc::get_autostart_enabled,
+            ipc::set_autostart_enabled,
+            ipc::show_context_menu,
+            ipc::quit_app
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

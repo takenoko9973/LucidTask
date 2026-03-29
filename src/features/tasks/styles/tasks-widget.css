@@ -1,53 +1,103 @@
 :root {
-  --task-widget-bg: rgba(247, 244, 238, 0.92);
-  --task-widget-border: rgba(217, 210, 195, 0.9);
-  --task-widget-shadow: rgba(31, 25, 17, 0.14);
+  --task-widget-bg: rgba(247, 244, 238, 0.96);
+  --task-widget-border: rgba(209, 199, 180, 0.9);
+  --task-widget-shadow: rgba(31, 25, 17, 0.18);
   --task-title-color: #2a261e;
   --task-muted-color: #665f50;
-  --task-card-bg: rgba(255, 253, 248, 0.94);
-  --task-card-border: rgba(232, 224, 209, 0.92);
+  --task-card-bg: rgba(255, 252, 246, 0.96);
+  --task-card-border: rgba(228, 219, 202, 0.96);
   --task-gap: 8px;
-  --task-card-height: 52px;
+  --task-card-height: 64px;
 }
 
 .tasks-widget {
-  width: min(420px, 100%);
-  padding: 12px;
-  border-radius: 14px;
+  width: 100%;
+  min-height: 154px;
+  padding: 14px;
+  position: relative;
+  border-radius: 16px;
   border: 1px solid var(--task-widget-border);
   background:
-    radial-gradient(circle at 100% 0%, rgba(235, 180, 103, 0.2) 0, rgba(235, 180, 103, 0) 48%),
-    radial-gradient(circle at 0% 100%, rgba(114, 176, 194, 0.16) 0, rgba(114, 176, 194, 0) 46%),
+    linear-gradient(135deg, rgba(255, 248, 236, 0.96) 0%, rgba(247, 244, 238, 0.94) 58%, rgba(240, 234, 224, 0.96) 100%),
+    radial-gradient(circle at 100% 0%, rgba(235, 180, 103, 0.22) 0, rgba(235, 180, 103, 0) 50%),
+    radial-gradient(circle at 0% 100%, rgba(114, 176, 194, 0.18) 0, rgba(114, 176, 194, 0) 48%),
     var(--task-widget-bg);
-  box-shadow: 0 10px 24px var(--task-widget-shadow);
+  box-shadow: 0 14px 32px var(--task-widget-shadow);
+}
+
+.tasks-widget__drag-strip {
+  height: 22px;
+  margin: -4px -4px 8px;
+  border-radius: 10px;
+  cursor: grab;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(168, 146, 107, 0.3) 0,
+      rgba(168, 146, 107, 0.3) 12px,
+      rgba(168, 146, 107, 0.14) 12px,
+      rgba(168, 146, 107, 0.14) 20px
+    );
+}
+
+.tasks-widget__drag-strip:active {
+  cursor: grabbing;
+}
+
+.tasks-widget__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.tasks-widget__drag-handle {
+  min-width: 0;
+  flex: 1 1 auto;
+  padding: 2px 0;
+}
+
+.tasks-widget__eyebrow {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8b6d3e;
+}
+
+.tasks-widget__title {
+  margin: 0;
+  color: var(--task-title-color);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .tasks-widget__empty,
 .tasks-widget__status {
   margin: 0;
   font-size: 14px;
+  line-height: 1.5;
   color: var(--task-muted-color);
 }
 
-.tasks-widget__actions {
-  margin-bottom: 10px;
-  display: flex;
-  justify-content: flex-end;
-}
-
 .tasks-create-button {
-  border: 1px solid #c5baa6;
-  border-radius: 10px;
-  padding: 8px 10px;
-  background: rgba(242, 236, 223, 0.94);
-  color: #3e372c;
+  flex: 0 0 auto;
+  border: 1px solid #b79863;
+  border-radius: 11px;
+  padding: 9px 12px;
+  background: linear-gradient(180deg, #f1dbb2 0%, #e7c78c 100%);
+  color: #3a2b12;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
 }
 
 .tasks-create-button:hover {
-  background: rgba(233, 225, 209, 0.96);
+  background: linear-gradient(180deg, #f5e2bd 0%, #ecca8f 100%);
 }
 
 .tasks-list {
@@ -70,14 +120,29 @@
 }
 
 .task-card {
-  height: var(--task-card-height);
-  border-radius: 10px;
+  min-height: var(--task-card-height);
+  border-radius: 12px;
   border: 1px solid var(--task-card-border);
   background: var(--task-card-bg);
-  padding: 10px 12px;
+  padding: 11px 12px;
   display: flex;
   align-items: center;
   gap: 10px;
+  position: relative;
+}
+
+.task-card--completed {
+  background: rgba(239, 236, 231, 0.96);
+  border-color: rgba(202, 194, 182, 0.9);
+  color: #787167;
+}
+
+.task-card__pin-icon {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  color: #8b3f1f;
+  display: inline-flex;
 }
 
 .task-card__indicator {
@@ -100,8 +165,8 @@
   text-transform: uppercase;
 }
 
-.task-card__indicator--pinned {
-  color: #8b3f1f;
+.task-card__indicator--completed {
+  color: #676157;
 }
 
 .task-card__indicator--due {
@@ -118,36 +183,95 @@
 
 .task-card__title {
   margin: 0;
-  min-width: 0;
-  flex: 1 1 auto;
   color: var(--task-title-color);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
+  line-height: 1.25;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.task-card__edit {
-  border: 1px solid #c5baa6;
-  border-radius: 8px;
-  background: rgba(242, 236, 223, 0.9);
-  color: #3e372c;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1;
-  padding: 6px 8px;
-  cursor: pointer;
+.task-card__content {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.task-card--completed .task-card__title {
+  color: #787167;
+}
+
+.task-card__deadline {
+  margin: 0;
+  color: #756b5d;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-card--completed .task-card__deadline {
+  color: #8e857a;
+}
+
+.task-card__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   flex: 0 0 auto;
 }
 
-.tasks-expand-toggle {
-  margin-top: 10px;
-  width: 100%;
-  border: 1px solid #c5baa6;
+.task-card__complete {
+  border: 1px solid #b7a27e;
   border-radius: 10px;
-  padding: 8px 10px;
-  background: #f2ecdf;
+  background: rgba(248, 243, 233, 0.98);
+  color: #4a4134;
+  line-height: 1;
+  padding: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+}
+
+.task-card__complete--active {
+  border-color: #5a8f4b;
+  background: rgba(226, 240, 222, 0.98);
+}
+
+.task-card__checkmark {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 2px solid #7f725d;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.task-card__checkmark--active {
+  border-color: #4f8a3f;
+  background: #4f8a3f;
+  color: #ffffff;
+}
+
+.tasks-expand-toggle {
+  margin-top: 12px;
+  width: 100%;
+  border: 1px solid #c9b38b;
+  border-radius: 11px;
+  padding: 9px 10px;
+  background: rgba(245, 239, 228, 0.96);
   color: #3e372c;
   font-size: 13px;
   font-weight: 600;

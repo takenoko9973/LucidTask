@@ -128,6 +128,7 @@ fn parse_menu_command(menu_id: &str) -> TrayMenuCommand {
     }
 }
 
+// メニューIDの解釈は pure 関数で完結するため、private実装を inline で固定する。
 #[cfg(test)]
 mod tests {
     use super::{
@@ -137,6 +138,7 @@ mod tests {
 
     #[test]
     fn parse_menu_command_maps_known_ids() {
+        // 仕様: 定義済みIDは対応するメニューコマンドに正規化される。
         assert_eq!(
             parse_menu_command(MENU_ID_TOGGLE_VISIBILITY),
             TrayMenuCommand::ToggleVisibility
@@ -154,6 +156,7 @@ mod tests {
 
     #[test]
     fn parse_menu_command_maps_unknown_ids() {
+        // 仕様: 未知IDは安全に Unknown へフォールバックする。
         assert_eq!(parse_menu_command("other.id"), TrayMenuCommand::Unknown);
     }
 }

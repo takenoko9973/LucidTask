@@ -75,18 +75,21 @@ fn plugin_error_to_tauri(error: impl ToString) -> tauri::Error {
     tauri::Error::Io(io::Error::other(error.to_string()))
 }
 
+// private関数の分岐（marker/toggle）は公開API経由だと網羅しづらいため inline で検証する。
 #[cfg(test)]
 mod tests {
     use super::{should_apply_initial_policy, toggled_state};
 
     #[test]
     fn initial_policy_runs_only_before_marker_exists() {
+        // 仕様: 初回のみ初期ポリシーを適用し、2回目以降はmarkerでスキップする。
         assert!(should_apply_initial_policy(false));
         assert!(!should_apply_initial_policy(true));
     }
 
     #[test]
     fn toggle_inverts_autostart_state() {
+        // 仕様: toggleは現在状態を必ず反転する。
         assert!(toggled_state(false));
         assert!(!toggled_state(true));
     }
