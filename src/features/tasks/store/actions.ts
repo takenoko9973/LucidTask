@@ -77,17 +77,26 @@ export function createTasksActions(dispatch: Dispatch<TasksAction>, api: TaskApi
       return runUpsertTaskOperation(dispatch, () => api.setTaskPinned(id, isPinned));
     },
     async cleanupCompletedTasks() {
-      // cleanup は削除件数のみ返す契約のため tasks 配列は更新しない。
-      return runManagedOperation(dispatch, async () => api.cleanupCompletedTasks());
+      return runManagedOperation(dispatch, async () => {
+        const removed = await api.cleanupCompletedTasks();
+        if (removed > 0) {
+          const tasks = await api.listTasks();
+          dispatch({ type: "tasks/replaceTasks", tasks });
+        }
+        return removed;
+      });
     },
     toggleExpand() {
       dispatch({ type: "tasks/toggleExpand" });
     },
-    async openCreateDialog() {
-      await api.openTaskDialog({ mode: "create" });
+    openCreateDialog() {
+      dispatch({ type: "tasks/openCreateDialog" });
     },
-    async openEditDialog(id) {
-      await api.openTaskDialog({ mode: "edit", taskId: id });
+    openEditDialog(id) {
+      dispatch({ type: "tasks/openEditDialog", id });
+    },
+    closeDialog() {
+      dispatch({ type: "tasks/closeDialog" });
     },
   };
 }

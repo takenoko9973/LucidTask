@@ -24,7 +24,6 @@ function createApiMock() {
     completeTask: vi.fn<TaskApi["completeTask"]>(),
     setTaskPinned: vi.fn<TaskApi["setTaskPinned"]>(),
     cleanupCompletedTasks: vi.fn<TaskApi["cleanupCompletedTasks"]>(),
-    openTaskDialog: vi.fn<TaskApi["openTaskDialog"]>(),
   };
 }
 
@@ -42,6 +41,7 @@ function createHarness(initialState: TasksState = initialTasksState) {
 
 describe("createTasksActions", () => {
   it("initializes tasks and updates loading state", async () => {
+    // 仕様: initialize は即座に loading を立て、取得完了後に initialized を確定する。
     const api = createApiMock();
     const harness = createHarness();
     const actions = createTasksActions(harness.dispatch, api);
@@ -69,6 +69,7 @@ describe("createTasksActions", () => {
   });
 
   it("upserts create/update/setPinned responses", async () => {
+    // 仕様: 単体更新APIは一覧再取得ではなく upsert で局所反映する。
     const api = createApiMock();
     const harness = createHarness();
     const actions = createTasksActions(harness.dispatch, api);
@@ -99,6 +100,7 @@ describe("createTasksActions", () => {
   });
 
   it("replaces task list from delete/complete responses", async () => {
+    // 仕様: delete/complete は一覧全体レスポンスなので local state を置換する。
     const api = createApiMock();
     const initialState: TasksState = {
       ...initialTasksState,
@@ -111,12 +113,23 @@ describe("createTasksActions", () => {
     await actions.deleteTask("task-1");
     expect(harness.getState().tasks.map((task) => task.id)).toEqual(["task-2"]);
 
-    api.completeTask.mockResolvedValueOnce([]);
+    api.completeTask.mockResolvedValueOnce([
+      {
+        ...createTask("task-2"),
+        completedAt: "2026-03-29T10:00:00+09:00",
+      },
+    ]);
     await actions.completeTask("task-2");
-    expect(harness.getState().tasks).toEqual([]);
+    expect(harness.getState().tasks).toEqual([
+      {
+        ...createTask("task-2"),
+        completedAt: "2026-03-29T10:00:00+09:00",
+      },
+    ]);
   });
 
-  it("keeps active tasks unchanged for cleanup operation", async () => {
+  it("refreshes task list after cleanup removes completed tasks", async () => {
+    // 仕様: cleanup は削除件数のみ返すため、removed > 0 のときだけ再取得する。
     const api = createApiMock();
     const initialState: TasksState = {
       ...initialTasksState,
@@ -126,14 +139,36 @@ describe("createTasksActions", () => {
     const actions = createTasksActions(harness.dispatch, api);
 
     api.cleanupCompletedTasks.mockResolvedValueOnce(2);
+    api.listTasks.mockResolvedValueOnce([createTask("task-2")]);
 
     const removed = await actions.cleanupCompletedTasks();
 
     expect(removed).toBe(2);
+    expect(api.listTasks).toHaveBeenCalledTimes(1);
+    expect(harness.getState().tasks.map((task) => task.id)).toEqual(["task-2"]);
+  });
+
+  it("does not refetch tasks when cleanup removes nothing", async () => {
+    // 仕様: no-op cleanup では余計なIOや表示順変化を発生させない。
+    const api = createApiMock();
+    const initialState: TasksState = {
+      ...initialTasksState,
+      tasks: [createTask("task-1"), createTask("task-2")],
+    };
+    const harness = createHarness(initialState);
+    const actions = createTasksActions(harness.dispatch, api);
+
+    api.cleanupCompletedTasks.mockResolvedValueOnce(0);
+
+    const removed = await actions.cleanupCompletedTasks();
+
+    expect(removed).toBe(0);
+    expect(api.listTasks).not.toHaveBeenCalled();
     expect(harness.getState().tasks.map((task) => task.id)).toEqual(["task-1", "task-2"]);
   });
 
   it("stores error and resets loading when operation fails", async () => {
+    // 仕様: すべての非同期操作で loading/error 遷移契約を共通化する。
     const api = createApiMock();
     const harness = createHarness();
     const actions = createTasksActions(harness.dispatch, api);
@@ -153,6 +188,7 @@ describe("createTasksActions", () => {
   });
 
   it("dispatches toggleExpand without API calls", async () => {
+    // 仕様: 展開トグルは表示状態のみの変更で、バックエンド呼び出しを行わない。
     const api = createApiMock();
     const initialState: TasksState = {
       ...initialTasksState,
@@ -169,7 +205,8 @@ describe("createTasksActions", () => {
     expect(api.createTask).not.toHaveBeenCalled();
   });
 
-  it("opens create/edit dialogs without state mutation", async () => {
+  it("opens and closes dialogs by mutating local dialog state only", async () => {
+    // 仕様: ダイアログ開閉アクションは UI 状態だけ変更し、Task API を叩かない。
     const api = createApiMock();
     const initialState: TasksState = {
       ...initialTasksState,
@@ -178,13 +215,25 @@ describe("createTasksActions", () => {
     };
     const harness = createHarness(initialState);
     const actions = createTasksActions(harness.dispatch, api);
-    api.openTaskDialog.mockResolvedValue(undefined);
 
-    await actions.openCreateDialog();
-    await actions.openEditDialog("2");
+    actions.openCreateDialog();
+    expect(harness.getState().dialog).toEqual({
+      isOpen: true,
+      mode: "create",
+      taskId: null,
+    });
 
-    expect(api.openTaskDialog).toHaveBeenNthCalledWith(1, { mode: "create" });
-    expect(api.openTaskDialog).toHaveBeenNthCalledWith(2, { mode: "edit", taskId: "2" });
-    expect(harness.getState()).toEqual(initialState);
+    actions.openEditDialog("2");
+    expect(harness.getState().dialog).toEqual({
+      isOpen: true,
+      mode: "edit",
+      taskId: "2",
+    });
+
+    actions.closeDialog();
+    expect(harness.getState().dialog).toEqual(initialTasksState.dialog);
+    expect(api.listTasks).not.toHaveBeenCalled();
+    expect(api.createTask).not.toHaveBeenCalled();
+    expect(api.updateTask).not.toHaveBeenCalled();
   });
 });

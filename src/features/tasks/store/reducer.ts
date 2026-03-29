@@ -1,6 +1,6 @@
 import type { Task } from "../../../shared/types/task";
-import { INITIAL_VISIBLE_TASK_COUNT, normalizeExpandedState } from "../selectors";
-import type { TasksState } from "./types";
+import { canExpandTaskList, countActiveTasks, normalizeExpandedState } from "../selectors";
+import type { TasksDialogState, TasksState } from "./types";
 
 export type TasksAction =
   | { type: "tasks/operationStarted" }
@@ -9,7 +9,24 @@ export type TasksAction =
   | { type: "tasks/initialized" }
   | { type: "tasks/replaceTasks"; tasks: Task[] }
   | { type: "tasks/upsertTask"; task: Task }
-  | { type: "tasks/toggleExpand" };
+  | { type: "tasks/toggleExpand" }
+  | { type: "tasks/openCreateDialog" }
+  | { type: "tasks/openEditDialog"; id: string }
+  | { type: "tasks/closeDialog" };
+
+const closedDialogState: TasksDialogState = {
+  isOpen: false,
+  mode: "create",
+  taskId: null,
+};
+
+function normalizeDialogState(dialog: TasksDialogState, tasks: Task[]): TasksDialogState {
+  if (!dialog.isOpen || dialog.mode !== "edit" || !dialog.taskId) {
+    return dialog;
+  }
+  const hasTargetTask = tasks.some((task) => task.id === dialog.taskId);
+  return hasTargetTask ? dialog : closedDialogState;
+}
 
 export const initialTasksState: TasksState = {
   tasks: [],
@@ -17,14 +34,17 @@ export const initialTasksState: TasksState = {
   error: null,
   initialized: false,
   isExpanded: false,
+  dialog: closedDialogState,
 };
 
 function withNormalizedExpansion(state: TasksState, tasks: Task[]): TasksState {
+  const activeCount = countActiveTasks(tasks);
   // タスク数が閾値を下回ったときに展開状態を自動補正する。
   return {
     ...state,
     tasks,
-    isExpanded: normalizeExpandedState(state.isExpanded, tasks.length),
+    isExpanded: normalizeExpandedState(state.isExpanded, activeCount, tasks.length),
+    dialog: normalizeDialogState(state.dialog, tasks),
   };
 }
 
@@ -69,7 +89,7 @@ export function tasksReducer(state: TasksState, action: TasksAction): TasksState
     case "tasks/upsertTask":
       return withNormalizedExpansion(state, upsertTask(state.tasks, action.task));
     case "tasks/toggleExpand":
-      if (state.tasks.length <= INITIAL_VISIBLE_TASK_COUNT) {
+      if (!canExpandTaskList(countActiveTasks(state.tasks), state.tasks.length)) {
         return {
           ...state,
           isExpanded: false,
@@ -79,6 +99,29 @@ export function tasksReducer(state: TasksState, action: TasksAction): TasksState
       return {
         ...state,
         isExpanded: !state.isExpanded,
+      };
+    case "tasks/openCreateDialog":
+      return {
+        ...state,
+        dialog: {
+          isOpen: true,
+          mode: "create",
+          taskId: null,
+        },
+      };
+    case "tasks/openEditDialog":
+      return {
+        ...state,
+        dialog: {
+          isOpen: true,
+          mode: "edit",
+          taskId: action.id,
+        },
+      };
+    case "tasks/closeDialog":
+      return {
+        ...state,
+        dialog: closedDialogState,
       };
     default: {
       const exhaustiveCheck: never = action;

@@ -1,6 +1,30 @@
+.task-dialog-modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 8px;
+  z-index: 40;
+}
+
+.task-dialog-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: rgba(20, 15, 9, 0.28);
+}
+
 .task-dialog {
   width: min(420px, 100%);
   margin: 0 auto;
+}
+
+.task-dialog--modal {
+  position: relative;
+  z-index: 1;
 }
 
 .task-dialog__panel {
@@ -9,6 +33,15 @@
   background: rgba(247, 244, 238, 0.94);
   box-shadow: 0 10px 24px rgba(31, 25, 17, 0.16);
   padding: 14px;
+  max-height: none;
+  overflow-y: visible;
+}
+
+@media (max-height: 520px) {
+  .task-dialog__panel {
+    max-height: calc(100vh - 16px);
+    overflow-y: auto;
+  }
 }
 
 .task-dialog__title {

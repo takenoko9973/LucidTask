@@ -21,15 +21,18 @@ body,
   margin: 0;
   min-height: 100%;
   background: transparent;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 body {
   display: flex;
   justify-content: center;
-  padding: 18px 14px;
+  padding: 0;
   overflow: hidden;
 }
 
 .container {
-  width: min(440px, 100%);
+  width: min(100vw, 460px);
+  padding: 0;
 }

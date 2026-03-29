@@ -1,8 +1,6 @@
 import { useEffect, useRef } from "react";
-import { TaskDialog, parseTaskDialogRoute } from "./features/tasks/components/TaskDialog";
 import { useWidgetWindowSizing } from "./features/tasks/components/useWidgetWindowSizing";
 import { TasksProvider, TasksWidget, useTasksActions, useTasksState } from "./features/tasks";
-import { TASK_EVENTS } from "./shared/events";
 import "./App.css";
 
 const COMPLETED_TASK_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
@@ -24,12 +22,22 @@ function TasksBootstrap() {
 
   useWidgetWindowSizing({
     containerRef,
-    watchValues: [state.tasks.length, state.isExpanded, state.loading, state.error],
+    watchValues: [
+      state.tasks.length,
+      state.isExpanded,
+      state.loading,
+      state.error,
+      state.dialog.isOpen,
+      state.dialog.mode,
+      state.dialog.taskId,
+    ],
   });
 
   useEffect(() => {
-    runBackground("initialize", () => actions.initialize());
-    runBackground("startup cleanup", () => actions.cleanupCompletedTasks());
+    runBackground("startup bootstrap", async () => {
+      await actions.initialize();
+      await actions.cleanupCompletedTasks();
+    });
 
     const intervalId = window.setInterval(() => {
       runBackground("interval cleanup", () => actions.cleanupCompletedTasks());
@@ -37,34 +45,6 @@ function TasksBootstrap() {
 
     return () => {
       window.clearInterval(intervalId);
-    };
-  }, [actions]);
-
-  useEffect(() => {
-    let isDisposed = false;
-    let unlisten: (() => void) | null = null;
-
-    void (async () => {
-      try {
-        const { listen } = await import("@tauri-apps/api/event");
-        const stopListening = await listen(TASK_EVENTS.mutated, () => {
-          runBackground("sync after task dialog", () => actions.initialize());
-        });
-
-        if (isDisposed) {
-          stopListening();
-          return;
-        }
-
-        unlisten = stopListening;
-      } catch {
-        // ブラウザ単体実行時はイベント購読をスキップする。
-      }
-    })();
-
-    return () => {
-      isDisposed = true;
-      unlisten?.();
     };
   }, [actions]);
 
@@ -84,12 +64,6 @@ function MainWidgetApp() {
 }
 
 function App() {
-  const taskDialogRoute =
-    typeof window === "undefined" ? null : parseTaskDialogRoute(window.location.search);
-  if (taskDialogRoute) {
-    return <TaskDialog initialRoute={taskDialogRoute} />;
-  }
-
   return <MainWidgetApp />;
 }
 
