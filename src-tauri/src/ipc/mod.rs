@@ -1,8 +1,13 @@
 use std::sync::Mutex;
 
-use serde::Deserialize;
-use tauri::{AppHandle, Manager, Runtime, State};
+use serde::{Deserialize, Serialize};
+use tauri::{
+    menu::{CheckMenuItem, Menu, MenuEvent, MenuItem, Submenu},
+    AppHandle, Emitter, LogicalPosition, Manager, Runtime, State, WebviewWindow,
+};
 use uuid::Uuid;
+
+mod native_menu_i18n;
 
 use crate::model::task::{Task, TaskType};
 use crate::repository::{JsonTaskRepository, RepositoryError};
@@ -10,9 +15,81 @@ use crate::service::{
     CreateTaskInput as ServiceCreateTaskInput, TaskService, TaskServiceError, TaskStore,
     UpdateTaskInput as ServiceUpdateTaskInput,
 };
-use crate::system::window::{self, TaskDialogMode, TaskDialogRoute};
+use native_menu_i18n::MenuLocale;
 
 type CommandResult<T> = Result<T, String>;
+
+const NATIVE_MENU_EVENT_NAME: &str = "tasks:native-menu-action";
+const MENU_ID_APP_AUTOSTART_TOGGLE: &str = "ctx.app.autostart.toggle";
+const MENU_ID_APP_LOCALE_JA: &str = "ctx.app.locale.ja";
+const MENU_ID_APP_LOCALE_EN: &str = "ctx.app.locale.en";
+const MENU_ID_APP_QUIT: &str = "ctx.app.quit";
+const MENU_ID_TASK_EDIT_PREFIX: &str = "ctx.task.edit::";
+const MENU_ID_TASK_PIN_PREFIX: &str = "ctx.task.pin::";
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ShowContextMenuKind {
+    App,
+    Task,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShowContextMenuInput {
+    pub kind: ShowContextMenuKind,
+    pub x: f64,
+    pub y: f64,
+    pub locale: Option<String>,
+    pub task_id: Option<String>,
+    pub is_pinned: Option<bool>,
+    pub is_completed: Option<bool>,
+}
+
+#[derive(Debug)]
+struct AppContextMenuRequest {
+    x: f64,
+    y: f64,
+    locale: MenuLocale,
+}
+
+#[derive(Debug)]
+struct TaskContextMenuRequest {
+    x: f64,
+    y: f64,
+    locale: MenuLocale,
+    task_id: String,
+    is_completed: bool,
+    next_is_pinned: bool,
+}
+
+#[derive(Debug)]
+enum ValidatedContextMenuRequest {
+    App(AppContextMenuRequest),
+    Task(TaskContextMenuRequest),
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(tag = "action", rename_all = "kebab-case")]
+enum NativeMenuActionEvent {
+    SetLocale {
+        locale: String,
+    },
+    TaskEdit {
+        task_id: String,
+    },
+    TaskPinToggle {
+        task_id: String,
+        next_is_pinned: bool,
+    },
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum NativeMenuAction {
+    ToggleAutostart,
+    Quit,
+    Emit(NativeMenuActionEvent),
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,13 +106,6 @@ pub struct UpdateTaskInput {
     pub title: Option<String>,
     pub task_type: Option<TaskType>,
     pub is_pinned: Option<bool>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OpenTaskDialogInput {
-    pub mode: TaskDialogMode,
-    pub task_id: Option<String>,
 }
 
 pub struct AppState {
@@ -56,16 +126,17 @@ impl JsonTaskStore {
 impl TaskStore for JsonTaskStore {
     type Error = RepositoryError;
 
-    fn load_active_tasks(&self) -> Result<Vec<Task>, Self::Error> {
+    fn load_tasks(&self) -> Result<Vec<Task>, Self::Error> {
         self.repository.load_tasks()
     }
 
-    fn save_active_tasks(&mut self, tasks: &[Task]) -> Result<(), Self::Error> {
+    fn save_tasks(&mut self, tasks: &[Task]) -> Result<(), Self::Error> {
         self.repository.save_tasks(tasks)
     }
 }
 
 pub fn build_app_state<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, String> {
+    // 保存先は tauri.conf の identifier に紐づく。identifier変更時のデータ移行は今回は行わない。
     let app_data_dir = app
         .path()
         .app_data_dir()
@@ -98,24 +169,6 @@ fn to_service_update_input(input: UpdateTaskInput) -> ServiceUpdateTaskInput {
     }
 }
 
-fn validate_open_dialog_input(input: OpenTaskDialogInput) -> CommandResult<TaskDialogRoute> {
-    let normalized_task_id = input.task_id.map(|task_id| task_id.trim().to_string());
-
-    if matches!(input.mode, TaskDialogMode::Edit)
-        && normalized_task_id
-            .as_ref()
-            .map(|task_id| task_id.is_empty())
-            .unwrap_or(true)
-    {
-        return Err("taskId is required when mode is edit".to_string());
-    }
-
-    Ok(TaskDialogRoute {
-        mode: input.mode,
-        task_id: normalized_task_id.filter(|task_id| !task_id.is_empty()),
-    })
-}
-
 fn with_task_service<T>(
     state: &State<'_, AppState>,
     operation: impl FnOnce(&mut TaskService<JsonTaskStore>) -> Result<T, TaskServiceError>,
@@ -125,6 +178,226 @@ fn with_task_service<T>(
         .lock()
         .map_err(|_| "Task service lock was poisoned".to_string())?;
     operation(&mut task_service).map_err(|error| error.to_string())
+}
+
+fn ensure_finite_point(value: f64, name: &str) -> Result<f64, String> {
+    if value.is_finite() {
+        return Ok(value.max(0.0));
+    }
+    Err(format!("Invalid pointer coordinate: {name}"))
+}
+
+fn validate_show_context_menu_input(
+    input: ShowContextMenuInput,
+) -> Result<ValidatedContextMenuRequest, String> {
+    let x = ensure_finite_point(input.x, "x")?;
+    let y = ensure_finite_point(input.y, "y")?;
+    let locale = MenuLocale::parse(input.locale.as_deref());
+
+    match input.kind {
+        ShowContextMenuKind::App => Ok(ValidatedContextMenuRequest::App(AppContextMenuRequest {
+            x,
+            y,
+            locale,
+        })),
+        ShowContextMenuKind::Task => {
+            let task_id = input
+                .task_id
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| "task menu requires taskId".to_string())?
+                .to_string();
+            let is_pinned = input
+                .is_pinned
+                .ok_or_else(|| "task menu requires isPinned".to_string())?;
+            let is_completed = input
+                .is_completed
+                .ok_or_else(|| "task menu requires isCompleted".to_string())?;
+
+            Ok(ValidatedContextMenuRequest::Task(TaskContextMenuRequest {
+                x,
+                y,
+                locale,
+                task_id,
+                is_completed,
+                next_is_pinned: !is_pinned,
+            }))
+        }
+    }
+}
+
+fn popup_position(x: f64, y: f64) -> LogicalPosition<f64> {
+    LogicalPosition::new(x.max(0.0), y.max(0.0))
+}
+
+fn show_app_context_menu<R: Runtime>(
+    app: &AppHandle<R>,
+    window: &WebviewWindow<R>,
+    request: AppContextMenuRequest,
+) -> Result<(), String> {
+    let autostart_enabled =
+        crate::system::autostart::is_enabled(app).map_err(|error| error.to_string())?;
+    let autostart_toggle = CheckMenuItem::with_id(
+        app,
+        MENU_ID_APP_AUTOSTART_TOGGLE,
+        request.locale.app_autostart_label(),
+        true,
+        autostart_enabled,
+        None::<&str>,
+    )
+    .map_err(|error| error.to_string())?;
+    let locale_ja = CheckMenuItem::with_id(
+        app,
+        MENU_ID_APP_LOCALE_JA,
+        request.locale.app_language_ja_label(),
+        true,
+        request.locale == MenuLocale::Ja,
+        None::<&str>,
+    )
+    .map_err(|error| error.to_string())?;
+    let locale_en = CheckMenuItem::with_id(
+        app,
+        MENU_ID_APP_LOCALE_EN,
+        request.locale.app_language_en_label(),
+        true,
+        request.locale == MenuLocale::En,
+        None::<&str>,
+    )
+    .map_err(|error| error.to_string())?;
+    let language_menu = Submenu::with_items(
+        app,
+        request.locale.app_language_label(),
+        true,
+        &[&locale_ja, &locale_en],
+    )
+    .map_err(|error| error.to_string())?;
+    let quit_item = MenuItem::with_id(
+        app,
+        MENU_ID_APP_QUIT,
+        request.locale.app_quit_label(),
+        true,
+        None::<&str>,
+    )
+    .map_err(|error| error.to_string())?;
+    let menu = Menu::with_items(app, &[&autostart_toggle, &language_menu, &quit_item])
+        .map_err(|error| error.to_string())?;
+
+    window
+        .popup_menu_at(&menu, popup_position(request.x, request.y))
+        .map_err(|error| error.to_string())
+}
+
+fn build_task_edit_menu_id(task_id: &str) -> String {
+    format!("{MENU_ID_TASK_EDIT_PREFIX}{task_id}")
+}
+
+fn build_task_pin_menu_id(task_id: &str, next_is_pinned: bool) -> String {
+    let flag = if next_is_pinned { "1" } else { "0" };
+    format!("{MENU_ID_TASK_PIN_PREFIX}{task_id}::{flag}")
+}
+
+fn parse_task_pin_menu_id(menu_id: &str) -> Option<(String, bool)> {
+    let suffix = menu_id.strip_prefix(MENU_ID_TASK_PIN_PREFIX)?;
+    let (task_id, flag) = suffix.rsplit_once("::")?;
+    if task_id.is_empty() {
+        return None;
+    }
+    match flag {
+        "1" => Some((task_id.to_string(), true)),
+        "0" => Some((task_id.to_string(), false)),
+        _ => None,
+    }
+}
+
+fn show_task_context_menu<R: Runtime>(
+    app: &AppHandle<R>,
+    window: &WebviewWindow<R>,
+    request: TaskContextMenuRequest,
+) -> Result<(), String> {
+    let pin_item = MenuItem::with_id(
+        app,
+        build_task_pin_menu_id(&request.task_id, request.next_is_pinned),
+        if request.next_is_pinned {
+            request.locale.task_pin_on_label()
+        } else {
+            request.locale.task_pin_off_label()
+        },
+        !request.is_completed,
+        None::<&str>,
+    )
+    .map_err(|error| error.to_string())?;
+    let edit_item = MenuItem::with_id(
+        app,
+        build_task_edit_menu_id(&request.task_id),
+        request.locale.task_edit_label(),
+        !request.is_completed,
+        None::<&str>,
+    )
+    .map_err(|error| error.to_string())?;
+    let menu =
+        Menu::with_items(app, &[&pin_item, &edit_item]).map_err(|error| error.to_string())?;
+
+    window
+        .popup_menu_at(&menu, popup_position(request.x, request.y))
+        .map_err(|error| error.to_string())
+}
+
+fn parse_native_menu_action(menu_id: &str) -> Option<NativeMenuAction> {
+    if menu_id == MENU_ID_APP_AUTOSTART_TOGGLE {
+        return Some(NativeMenuAction::ToggleAutostart);
+    }
+
+    if menu_id == MENU_ID_APP_QUIT {
+        return Some(NativeMenuAction::Quit);
+    }
+
+    if menu_id == MENU_ID_APP_LOCALE_JA {
+        return Some(NativeMenuAction::Emit(NativeMenuActionEvent::SetLocale {
+            locale: MenuLocale::Ja.as_code().to_string(),
+        }));
+    }
+
+    if menu_id == MENU_ID_APP_LOCALE_EN {
+        return Some(NativeMenuAction::Emit(NativeMenuActionEvent::SetLocale {
+            locale: MenuLocale::En.as_code().to_string(),
+        }));
+    }
+
+    if let Some(task_id) = menu_id.strip_prefix(MENU_ID_TASK_EDIT_PREFIX) {
+        if !task_id.is_empty() {
+            return Some(NativeMenuAction::Emit(NativeMenuActionEvent::TaskEdit {
+                task_id: task_id.to_string(),
+            }));
+        }
+    }
+
+    if let Some((task_id, next_is_pinned)) = parse_task_pin_menu_id(menu_id) {
+        return Some(NativeMenuAction::Emit(
+            NativeMenuActionEvent::TaskPinToggle {
+                task_id,
+                next_is_pinned,
+            },
+        ));
+    }
+
+    None
+}
+
+fn emit_native_menu_action<R: Runtime>(
+    app: &AppHandle<R>,
+    action: NativeMenuActionEvent,
+) -> Result<(), String> {
+    app.emit(NATIVE_MENU_EVENT_NAME, action)
+        .map_err(|error| error.to_string())
+}
+
+fn exit_app<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(window) = app.get_webview_window(crate::system::window::MAIN_WINDOW_LABEL) {
+        let _ = window.hide();
+        let _ = window.close();
+    }
+    app.exit(0);
 }
 
 #[tauri::command]
@@ -175,36 +448,132 @@ pub fn cleanup_completed_tasks(state: State<'_, AppState>) -> CommandResult<usiz
 }
 
 #[tauri::command]
-pub fn open_task_dialog(app: AppHandle, input: OpenTaskDialogInput) -> CommandResult<()> {
-    let route = validate_open_dialog_input(input)?;
-    window::open_task_dialog_window(&app, route).map_err(|error| error.to_string())
+pub fn get_autostart_enabled<R: Runtime>(app: AppHandle<R>) -> CommandResult<bool> {
+    crate::system::autostart::is_enabled(&app).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn set_autostart_enabled<R: Runtime>(app: AppHandle<R>, enabled: bool) -> CommandResult<bool> {
+    crate::system::autostart::set_enabled(&app, enabled).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn show_context_menu<R: Runtime>(
+    app: AppHandle<R>,
+    input: ShowContextMenuInput,
+) -> CommandResult<()> {
+    let request = validate_show_context_menu_input(input)?;
+    let window = crate::system::window::main_window(&app).map_err(|error| error.to_string())?;
+
+    match request {
+        ValidatedContextMenuRequest::App(request) => show_app_context_menu(&app, &window, request)?,
+        ValidatedContextMenuRequest::Task(request) => {
+            show_task_context_menu(&app, &window, request)?
+        }
+    }
+
+    Ok(())
+}
+
+pub fn handle_native_menu_event<R: Runtime>(
+    app: &AppHandle<R>,
+    event: &MenuEvent,
+) -> Result<(), String> {
+    let Some(action) = parse_native_menu_action(event.id().as_ref()) else {
+        return Ok(());
+    };
+
+    match action {
+        NativeMenuAction::ToggleAutostart => {
+            crate::system::autostart::toggle(app).map_err(|error| error.to_string())?;
+        }
+        NativeMenuAction::Quit => {
+            exit_app(app);
+        }
+        NativeMenuAction::Emit(payload) => {
+            emit_native_menu_action(app, payload)?;
+        }
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn quit_app<R: Runtime>(app: AppHandle<R>) -> CommandResult<()> {
+    exit_app(&app);
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{validate_open_dialog_input, OpenTaskDialogInput};
-    use crate::system::window::TaskDialogMode;
+    use super::{
+        build_task_edit_menu_id, build_task_pin_menu_id, parse_native_menu_action,
+        parse_task_pin_menu_id, validate_show_context_menu_input, NativeMenuAction,
+        NativeMenuActionEvent, ShowContextMenuInput, ShowContextMenuKind,
+        ValidatedContextMenuRequest,
+    };
 
     #[test]
-    fn open_dialog_validation_accepts_create_without_task_id() {
-        let input = OpenTaskDialogInput {
-            mode: TaskDialogMode::Create,
+    fn validate_task_context_menu_requires_task_fields() {
+        // 仕様: taskメニュー入力は taskId/isPinned/isCompleted が必須。
+        let missing_task_id = ShowContextMenuInput {
+            kind: ShowContextMenuKind::Task,
+            x: 10.0,
+            y: 20.0,
+            locale: Some("ja".to_string()),
             task_id: None,
+            is_pinned: Some(false),
+            is_completed: Some(false),
         };
 
-        let validated = validate_open_dialog_input(input).expect("create should be valid");
-        assert_eq!(validated.mode, TaskDialogMode::Create);
-        assert_eq!(validated.task_id, None);
+        let result = validate_show_context_menu_input(missing_task_id);
+        assert!(result.is_err());
     }
 
     #[test]
-    fn open_dialog_validation_rejects_edit_without_task_id() {
-        let input = OpenTaskDialogInput {
-            mode: TaskDialogMode::Edit,
-            task_id: Some(" ".to_string()),
+    fn validate_app_context_menu_accepts_minimum_payload() {
+        // 仕様: appメニュー入力は座標とkindだけで解決できる。
+        let app_input = ShowContextMenuInput {
+            kind: ShowContextMenuKind::App,
+            x: 12.5,
+            y: 30.0,
+            locale: Some("en".to_string()),
+            task_id: None,
+            is_pinned: None,
+            is_completed: None,
         };
 
-        let error = validate_open_dialog_input(input).expect_err("edit without id should fail");
-        assert!(error.contains("taskId is required"));
+        let result = validate_show_context_menu_input(app_input);
+        assert!(matches!(result, Ok(ValidatedContextMenuRequest::App(_))));
+    }
+
+    #[test]
+    fn task_pin_menu_id_round_trips() {
+        // 仕様: task pin menu id は taskId/nextIsPinned を可逆に保持する。
+        let menu_id = build_task_pin_menu_id("task-1", true);
+        assert_eq!(
+            parse_task_pin_menu_id(&menu_id),
+            Some(("task-1".to_string(), true))
+        );
+    }
+
+    #[test]
+    fn parse_native_menu_action_maps_task_and_locale_items() {
+        // 仕様: ネイティブメニューIDは locale/edit/pin のactionへ正しく変換される。
+        let locale_action = parse_native_menu_action("ctx.app.locale.en");
+        assert_eq!(
+            locale_action,
+            Some(NativeMenuAction::Emit(NativeMenuActionEvent::SetLocale {
+                locale: "en".to_string()
+            }))
+        );
+
+        let edit_action = parse_native_menu_action(&build_task_edit_menu_id("task-2"));
+        assert_eq!(
+            edit_action,
+            Some(NativeMenuAction::Emit(NativeMenuActionEvent::TaskEdit {
+                task_id: "task-2".to_string()
+            }))
+        );
     }
 }
