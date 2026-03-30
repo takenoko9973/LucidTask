@@ -64,6 +64,7 @@ describe("TaskDialog", () => {
     expect(markup).toContain("task-dialog-modal");
     expect(markup).toContain("datetime-local");
     expect(markup).not.toContain(messages.dialog.delete);
+    expect(markup).not.toContain(messages.dialog.deleteConfirm);
     expect(markup).not.toContain("Confirm");
   });
 
@@ -88,6 +89,7 @@ describe("TaskDialog", () => {
     // 検証
     expect(markup).toContain(messages.dialog.modeEdit);
     expect(markup).toContain(messages.dialog.delete);
+    expect(markup).not.toContain(messages.dialog.deleteConfirm);
     expect(markup).toContain(messages.dialog.cancel);
     expect(markup).toContain(messages.dialog.save);
   });

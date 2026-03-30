@@ -63,6 +63,12 @@ struct TaskContextMenuRequest {
     next_is_pinned: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct TaskContextMenuAvailability {
+    pin_enabled: bool,
+    edit_enabled: bool,
+}
+
 #[derive(Debug)]
 enum ValidatedContextMenuRequest {
     App(AppContextMenuRequest),
@@ -313,11 +319,20 @@ fn parse_task_pin_menu_id(menu_id: &str) -> Option<(String, bool)> {
     }
 }
 
+fn resolve_task_context_menu_availability(is_completed: bool) -> TaskContextMenuAvailability {
+    // 仕様: 完了済みタスクは Pin を無効化するが、復帰導線のため Edit は許可する。
+    TaskContextMenuAvailability {
+        pin_enabled: !is_completed,
+        edit_enabled: true,
+    }
+}
+
 fn show_task_context_menu<R: Runtime>(
     app: &AppHandle<R>,
     window: &WebviewWindow<R>,
     request: TaskContextMenuRequest,
 ) -> Result<(), String> {
+    let availability = resolve_task_context_menu_availability(request.is_completed);
     let pin_item = MenuItem::with_id(
         app,
         build_task_pin_menu_id(&request.task_id, request.next_is_pinned),
@@ -326,7 +341,7 @@ fn show_task_context_menu<R: Runtime>(
         } else {
             request.locale.task_pin_off_label()
         },
-        !request.is_completed,
+        availability.pin_enabled,
         None::<&str>,
     )
     .map_err(|error| error.to_string())?;
@@ -334,7 +349,7 @@ fn show_task_context_menu<R: Runtime>(
         app,
         build_task_edit_menu_id(&request.task_id),
         request.locale.task_edit_label(),
-        !request.is_completed,
+        availability.edit_enabled,
         None::<&str>,
     )
     .map_err(|error| error.to_string())?;
@@ -511,9 +526,9 @@ pub fn quit_app<R: Runtime>(app: AppHandle<R>) -> CommandResult<()> {
 mod tests {
     use super::{
         build_task_edit_menu_id, build_task_pin_menu_id, parse_native_menu_action,
-        parse_task_pin_menu_id, validate_show_context_menu_input, NativeMenuAction,
-        NativeMenuActionEvent, ShowContextMenuInput, ShowContextMenuKind,
-        ValidatedContextMenuRequest,
+        parse_task_pin_menu_id, resolve_task_context_menu_availability,
+        validate_show_context_menu_input, NativeMenuAction, NativeMenuActionEvent,
+        ShowContextMenuInput, ShowContextMenuKind, ValidatedContextMenuRequest,
     };
 
     #[test]
@@ -578,6 +593,18 @@ mod tests {
                 task_id: "task-2".to_string()
             }))
         );
+    }
+
+    #[test]
+    fn completed_task_menu_keeps_edit_enabled_and_pin_disabled() {
+        // 仕様: 完了済みタスクでも edit は可能、pin は不可のままにする。
+        let completed = resolve_task_context_menu_availability(true);
+        assert_eq!(completed.pin_enabled, false);
+        assert_eq!(completed.edit_enabled, true);
+
+        let active = resolve_task_context_menu_availability(false);
+        assert_eq!(active.pin_enabled, true);
+        assert_eq!(active.edit_enabled, true);
     }
 
     #[test]
