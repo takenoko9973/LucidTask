@@ -76,10 +76,13 @@ enum NativeMenuActionEvent {
         locale: String,
     },
     TaskEdit {
+        #[serde(rename = "taskId")]
         task_id: String,
     },
     TaskPinToggle {
+        #[serde(rename = "taskId")]
         task_id: String,
+        #[serde(rename = "nextIsPinned")]
         next_is_pinned: bool,
     },
 }
@@ -575,5 +578,25 @@ mod tests {
                 task_id: "task-2".to_string()
             }))
         );
+    }
+
+    #[test]
+    fn native_menu_action_event_serializes_with_camel_case_fields() {
+        // 仕様: フロント連携イベントは taskId / nextIsPinned の camelCase で送信する。
+        let edit_event = serde_json::to_value(NativeMenuActionEvent::TaskEdit {
+            task_id: "task-1".to_string(),
+        })
+        .expect("event should serialize");
+        assert_eq!(edit_event["taskId"], "task-1");
+        assert!(edit_event.get("task_id").is_none());
+
+        let pin_event = serde_json::to_value(NativeMenuActionEvent::TaskPinToggle {
+            task_id: "task-2".to_string(),
+            next_is_pinned: true,
+        })
+        .expect("event should serialize");
+        assert_eq!(pin_event["taskId"], "task-2");
+        assert_eq!(pin_event["nextIsPinned"], true);
+        assert!(pin_event.get("next_is_pinned").is_none());
     }
 }
