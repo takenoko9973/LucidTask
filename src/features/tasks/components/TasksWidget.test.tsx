@@ -142,13 +142,15 @@ describe("TasksWidget", () => {
     const setLocale = vi.fn();
     const openEditDialog = vi.fn();
     const setTaskPinned = vi.fn(async () => undefined);
+    const deleteTask = vi.fn(async () => undefined);
     const payload: NativeMenuActionPayload = { action: "set-locale", locale: "en" };
 
-    applyNativeMenuAction(payload, { setLocale, openEditDialog, setTaskPinned });
+    applyNativeMenuAction(payload, { setLocale, openEditDialog, setTaskPinned, deleteTask });
 
     expect(setLocale).toHaveBeenCalledWith("en");
     expect(openEditDialog).not.toHaveBeenCalled();
     expect(setTaskPinned).not.toHaveBeenCalled();
+    expect(deleteTask).not.toHaveBeenCalled();
   });
 
   it("applies native task actions to existing handlers", () => {
@@ -156,19 +158,24 @@ describe("TasksWidget", () => {
     const setLocale = vi.fn();
     const openEditDialog = vi.fn();
     const setTaskPinned = vi.fn(async () => undefined);
+    const deleteTask = vi.fn(async () => undefined);
 
     applyNativeMenuAction(
       { action: "task-edit", taskId: "task-1" },
-      { setLocale, openEditDialog, setTaskPinned },
+      { setLocale, openEditDialog, setTaskPinned, deleteTask },
     );
     applyNativeMenuAction(
       { action: "task-pin-toggle", taskId: "task-2", nextIsPinned: true },
-      { setLocale, openEditDialog, setTaskPinned },
+      { setLocale, openEditDialog, setTaskPinned, deleteTask },
+    );
+    applyNativeMenuAction(
+      { action: "task-delete", taskId: "task-3" },
+      { setLocale, openEditDialog, setTaskPinned, deleteTask },
     );
 
     expect(openEditDialog).toHaveBeenCalledWith("task-1");
     expect(setTaskPinned).toHaveBeenCalledWith("task-2", true);
+    expect(deleteTask).toHaveBeenCalledWith("task-3");
     expect(setLocale).not.toHaveBeenCalled();
   });
 });
-

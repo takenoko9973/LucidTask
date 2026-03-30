@@ -26,6 +26,7 @@ const MENU_ID_APP_LOCALE_EN: &str = "ctx.app.locale.en";
 const MENU_ID_APP_QUIT: &str = "ctx.app.quit";
 const MENU_ID_TASK_EDIT_PREFIX: &str = "ctx.task.edit::";
 const MENU_ID_TASK_PIN_PREFIX: &str = "ctx.task.pin::";
+const MENU_ID_TASK_DELETE_PREFIX: &str = "ctx.task.delete::";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -84,6 +85,10 @@ enum NativeMenuActionEvent {
         task_id: String,
         #[serde(rename = "nextIsPinned")]
         next_is_pinned: bool,
+    },
+    TaskDelete {
+        #[serde(rename = "taskId")]
+        task_id: String,
     },
 }
 
@@ -300,6 +305,10 @@ fn build_task_pin_menu_id(task_id: &str, next_is_pinned: bool) -> String {
     format!("{MENU_ID_TASK_PIN_PREFIX}{task_id}::{flag}")
 }
 
+fn build_task_delete_menu_id(task_id: &str) -> String {
+    format!("{MENU_ID_TASK_DELETE_PREFIX}{task_id}")
+}
+
 fn parse_task_pin_menu_id(menu_id: &str) -> Option<(String, bool)> {
     let suffix = menu_id.strip_prefix(MENU_ID_TASK_PIN_PREFIX)?;
     let (task_id, flag) = suffix.rsplit_once("::")?;
@@ -338,8 +347,16 @@ fn show_task_context_menu<R: Runtime>(
         None::<&str>,
     )
     .map_err(|error| error.to_string())?;
-    let menu =
-        Menu::with_items(app, &[&pin_item, &edit_item]).map_err(|error| error.to_string())?;
+    let delete_item = MenuItem::with_id(
+        app,
+        build_task_delete_menu_id(&request.task_id),
+        request.locale.task_delete_label(),
+        true,
+        None::<&str>,
+    )
+    .map_err(|error| error.to_string())?;
+    let menu = Menu::with_items(app, &[&pin_item, &edit_item, &delete_item])
+        .map_err(|error| error.to_string())?;
 
     window
         .popup_menu_at(&menu, popup_position(request.x, request.y))
@@ -370,6 +387,14 @@ fn parse_native_menu_action(menu_id: &str) -> Option<NativeMenuAction> {
     if let Some(task_id) = menu_id.strip_prefix(MENU_ID_TASK_EDIT_PREFIX) {
         if !task_id.is_empty() {
             return Some(NativeMenuAction::Emit(NativeMenuActionEvent::TaskEdit {
+                task_id: task_id.to_string(),
+            }));
+        }
+    }
+
+    if let Some(task_id) = menu_id.strip_prefix(MENU_ID_TASK_DELETE_PREFIX) {
+        if !task_id.is_empty() {
+            return Some(NativeMenuAction::Emit(NativeMenuActionEvent::TaskDelete {
                 task_id: task_id.to_string(),
             }));
         }
@@ -510,9 +535,9 @@ pub fn quit_app<R: Runtime>(app: AppHandle<R>) -> CommandResult<()> {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_task_edit_menu_id, build_task_pin_menu_id, parse_native_menu_action,
-        parse_task_pin_menu_id, validate_show_context_menu_input, NativeMenuAction,
-        NativeMenuActionEvent, ShowContextMenuInput, ShowContextMenuKind,
+        build_task_delete_menu_id, build_task_edit_menu_id, build_task_pin_menu_id,
+        parse_native_menu_action, parse_task_pin_menu_id, validate_show_context_menu_input,
+        NativeMenuAction, NativeMenuActionEvent, ShowContextMenuInput, ShowContextMenuKind,
         ValidatedContextMenuRequest,
     };
 
@@ -578,6 +603,14 @@ mod tests {
                 task_id: "task-2".to_string()
             }))
         );
+
+        let delete_action = parse_native_menu_action(&build_task_delete_menu_id("task-3"));
+        assert_eq!(
+            delete_action,
+            Some(NativeMenuAction::Emit(NativeMenuActionEvent::TaskDelete {
+                task_id: "task-3".to_string()
+            }))
+        );
     }
 
     #[test]
@@ -598,5 +631,12 @@ mod tests {
         assert_eq!(pin_event["taskId"], "task-2");
         assert_eq!(pin_event["nextIsPinned"], true);
         assert!(pin_event.get("next_is_pinned").is_none());
+
+        let delete_event = serde_json::to_value(NativeMenuActionEvent::TaskDelete {
+            task_id: "task-3".to_string(),
+        })
+        .expect("event should serialize");
+        assert_eq!(delete_event["taskId"], "task-3");
+        assert!(delete_event.get("task_id").is_none());
     }
 }

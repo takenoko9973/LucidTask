@@ -53,6 +53,7 @@
     "appQuit": "Quit",
     "taskPinOn": "Pin",
     "taskPinOff": "Unpin",
-    "taskEdit": "Open edit dialog"
+    "taskEdit": "Open edit dialog",
+    "taskDelete": "Delete"
   }
 }

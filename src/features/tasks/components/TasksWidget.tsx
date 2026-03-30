@@ -24,6 +24,7 @@ export function applyNativeMenuAction(
     setLocale: (locale: TasksLocale) => void;
     openEditDialog: (taskId: TaskId) => void;
     setTaskPinned: (taskId: TaskId, isPinned: boolean) => Promise<unknown>;
+    deleteTask: (taskId: TaskId) => Promise<unknown>;
   },
 ): void {
   if (payload.action === "set-locale") {
@@ -35,6 +36,11 @@ export function applyNativeMenuAction(
 
   if (payload.action === "task-edit") {
     options.openEditDialog(payload.taskId);
+    return;
+  }
+
+  if (payload.action === "task-delete") {
+    void options.deleteTask(payload.taskId);
     return;
   }
 
@@ -73,6 +79,10 @@ export function TasksWidget() {
             setTaskPinned: (taskId, isPinned) =>
               actions.setTaskPinned(taskId, isPinned).catch((error) => {
                 reportUiError("setTaskPinned", error);
+              }),
+            deleteTask: (taskId) =>
+              actions.deleteTask(taskId).catch((error) => {
+                reportUiError("deleteTask", error);
               }),
           });
         });

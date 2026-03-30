@@ -59,6 +59,10 @@ impl MenuLocale {
         self.labels().task_edit.as_str()
     }
 
+    pub fn task_delete_label(self) -> &'static str {
+        self.labels().task_delete.as_str()
+    }
+
     fn labels(self) -> &'static NativeMenuLabels {
         match self {
             Self::Ja => &native_menu_catalog().ja,
@@ -78,6 +82,7 @@ struct NativeMenuLabelsRaw {
     task_pin_on: String,
     task_pin_off: String,
     task_edit: String,
+    task_delete: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -96,6 +101,7 @@ struct NativeMenuLabels {
     task_pin_on: String,
     task_pin_off: String,
     task_edit: String,
+    task_delete: String,
 }
 
 #[derive(Debug, Clone)]
@@ -137,6 +143,7 @@ fn to_native_menu_labels(raw: NativeMenuLabelsRaw) -> NativeMenuLabels {
         task_pin_on: raw.task_pin_on,
         task_pin_off: raw.task_pin_off,
         task_edit: raw.task_edit,
+        task_delete: raw.task_delete,
     }
 }
 
@@ -151,6 +158,7 @@ fn default_native_menu_catalog() -> NativeMenuCatalog {
             task_pin_on: "Pinする".to_string(),
             task_pin_off: "Pin解除".to_string(),
             task_edit: "編集画面表示".to_string(),
+            task_delete: "削除".to_string(),
         },
         en: NativeMenuLabels {
             app_autostart: "Auto start".to_string(),
@@ -161,6 +169,7 @@ fn default_native_menu_catalog() -> NativeMenuCatalog {
             task_pin_on: "Pin".to_string(),
             task_pin_off: "Unpin".to_string(),
             task_edit: "Open edit dialog".to_string(),
+            task_delete: "Delete".to_string(),
         },
     }
 }
@@ -182,5 +191,6 @@ mod tests {
         // 仕様: ネイティブメニュー文言は共通i18n JSONから取得される。
         assert_eq!(MenuLocale::Ja.app_quit_label(), "終了");
         assert_eq!(MenuLocale::En.app_language_label(), "Language");
+        assert_eq!(MenuLocale::En.task_delete_label(), "Delete");
     }
 }

@@ -53,6 +53,7 @@
     "appQuit": "終了",
     "taskPinOn": "Pinする",
     "taskPinOff": "Pin解除",
-    "taskEdit": "編集画面表示"
+    "taskEdit": "編集画面表示",
+    "taskDelete": "削除"
   }
 }

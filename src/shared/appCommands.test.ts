@@ -70,4 +70,31 @@ describe("appCommands", () => {
       },
     });
   });
+
+  it("calls show_context_menu command with task payload", async () => {
+    // 仕様: task右クリックは task状態を含む payload で show_context_menu を呼ぶ。
+    invokeMock.mockResolvedValueOnce(undefined);
+
+    await showContextMenu({
+      kind: "task",
+      x: 40,
+      y: 55,
+      locale: "en",
+      taskId: "task-1",
+      isPinned: true,
+      isCompleted: false,
+    });
+
+    expect(invokeMock).toHaveBeenCalledWith(APP_COMMANDS.showContextMenu, {
+      input: {
+        kind: "task",
+        x: 40,
+        y: 55,
+        locale: "en",
+        taskId: "task-1",
+        isPinned: true,
+        isCompleted: false,
+      },
+    });
+  });
 });
