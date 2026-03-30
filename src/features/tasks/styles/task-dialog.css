@@ -116,3 +116,10 @@
 .task-dialog__button--ghost {
   background: rgba(255, 253, 248, 0.85);
 }
+
+.task-dialog__button--danger {
+  margin-right: auto;
+  border-color: #d47b6a;
+  background: #f8e6e2;
+  color: #8f2d1f;
+}

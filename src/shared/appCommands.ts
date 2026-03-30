@@ -40,10 +40,6 @@ export type NativeMenuActionPayload =
       action: "task-pin-toggle";
       taskId: TaskId;
       nextIsPinned: boolean;
-    }
-  | {
-      action: "task-delete";
-      taskId: TaskId;
     };
 
 export async function quitApplication(): Promise<void> {
