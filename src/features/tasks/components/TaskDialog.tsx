@@ -30,13 +30,6 @@ function toErrorMessage(error: unknown): string {
   return String(error);
 }
 
-function confirmDelete(message: string): boolean {
-  if (typeof window === "undefined" || typeof window.confirm !== "function") {
-    return true;
-  }
-  return window.confirm(message);
-}
-
 export function TaskDialog({
   route,
   locale,
@@ -67,6 +60,7 @@ export function TaskDialog({
   const [isPinned, setIsPinned] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDeleteConfirming, setIsDeleteConfirming] = useState(false);
 
   useEffect(() => {
     if (!route) {
@@ -78,6 +72,7 @@ export function TaskDialog({
     setDeadlineAt(snapshot.deadlineAt);
     setIsPinned(snapshot.isPinned);
     setError(snapshot.error);
+    setIsDeleteConfirming(false);
   }, [dialogErrors, route, tasks]);
 
   const modeLabel = useMemo(
@@ -89,11 +84,30 @@ export function TaskDialog({
     return null;
   }
 
+  const resolveEditTaskId = (): string | null => {
+    if (route.mode !== "edit") {
+      return null;
+    }
+
+    const taskId = route.taskId?.trim();
+    if (!taskId) {
+      setError(messages.dialog.taskIdRequired);
+      return null;
+    }
+
+    return taskId;
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const validationError = validateTaskDialogForm(title, taskTypeKind, deadlineAt, dialogErrors);
     if (validationError) {
       setError(validationError);
+      return;
+    }
+
+    const editTaskId = route.mode === "edit" ? resolveEditTaskId() : null;
+    if (route.mode === "edit" && !editTaskId) {
       return;
     }
 
@@ -109,13 +123,12 @@ export function TaskDialog({
           isPinned,
         });
       } else {
-        const taskId = route.taskId?.trim();
-        if (!taskId) {
+        if (!editTaskId) {
           setError(messages.dialog.taskIdRequired);
           return;
         }
         await onUpdateTask({
-          id: taskId,
+          id: editTaskId,
           title: title.trim(),
           taskType,
           isPinned,
@@ -131,17 +144,8 @@ export function TaskDialog({
   };
 
   const handleDelete = async () => {
-    if (route.mode !== "edit") {
-      return;
-    }
-
-    const taskId = route.taskId?.trim();
+    const taskId = resolveEditTaskId();
     if (!taskId) {
-      setError(messages.dialog.taskIdRequired);
-      return;
-    }
-
-    if (!confirmDelete(messages.dialog.deleteConfirm)) {
       return;
     }
 
@@ -156,6 +160,21 @@ export function TaskDialog({
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const showDeleteConfirm = () => {
+    if (!resolveEditTaskId()) {
+      return;
+    }
+    setIsDeleteConfirming(true);
+    setError(null);
+  };
+
+  const hideDeleteConfirm = () => {
+    if (isSaving) {
+      return;
+    }
+    setIsDeleteConfirming(false);
   };
 
   return (
@@ -243,29 +262,53 @@ export function TaskDialog({
               </p>
             ) : null}
 
-            <div className="task-dialog__actions">
-              {route.mode === "edit" ? (
+            {isDeleteConfirming ? (
+              <div className="task-dialog__delete-confirm" role="alertdialog" aria-live="assertive">
+                <p className="task-dialog__delete-confirm-message">{messages.dialog.deleteConfirm}</p>
+                <div className="task-dialog__delete-confirm-actions">
+                  <button
+                    type="button"
+                    className="task-dialog__button task-dialog__button--ghost"
+                    disabled={isSaving}
+                    onClick={hideDeleteConfirm}
+                  >
+                    {messages.dialog.cancel}
+                  </button>
+                  <button
+                    type="button"
+                    className="task-dialog__button task-dialog__button--danger"
+                    disabled={isSaving}
+                    onClick={handleDelete}
+                  >
+                    {isSaving ? messages.dialog.saving : messages.dialog.delete}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="task-dialog__actions">
+                {route.mode === "edit" ? (
+                  <button
+                    type="button"
+                    className="task-dialog__button task-dialog__button--danger"
+                    disabled={isSaving}
+                    onClick={showDeleteConfirm}
+                  >
+                    {messages.dialog.delete}
+                  </button>
+                ) : null}
                 <button
                   type="button"
-                  className="task-dialog__button task-dialog__button--danger"
+                  className="task-dialog__button task-dialog__button--ghost"
                   disabled={isSaving}
-                  onClick={handleDelete}
+                  onClick={onClose}
                 >
-                  {messages.dialog.delete}
+                  {messages.dialog.cancel}
                 </button>
-              ) : null}
-              <button
-                type="button"
-                className="task-dialog__button task-dialog__button--ghost"
-                disabled={isSaving}
-                onClick={onClose}
-              >
-                {messages.dialog.cancel}
-              </button>
-              <button type="submit" className="task-dialog__button" disabled={isSaving}>
-                {isSaving ? messages.dialog.saving : messages.dialog.save}
-              </button>
-            </div>
+                <button type="submit" className="task-dialog__button" disabled={isSaving}>
+                  {isSaving ? messages.dialog.saving : messages.dialog.save}
+                </button>
+              </div>
+            )}
           </form>
         </div>
       </section>

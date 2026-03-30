@@ -102,6 +102,29 @@
   gap: 8px;
 }
 
+.task-dialog__delete-confirm {
+  margin-top: 6px;
+  border: 1px solid rgba(212, 123, 106, 0.52);
+  border-radius: 10px;
+  background: rgba(248, 230, 226, 0.72);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.task-dialog__delete-confirm-message {
+  margin: 0;
+  font-size: 13px;
+  color: #5a342d;
+}
+
+.task-dialog__delete-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .task-dialog__button {
   border: 1px solid #c5baa6;
   border-radius: 8px;
@@ -118,8 +141,11 @@
 }
 
 .task-dialog__button--danger {
-  margin-right: auto;
   border-color: #d47b6a;
   background: #f8e6e2;
   color: #8f2d1f;
+}
+
+.task-dialog__actions .task-dialog__button--danger {
+  margin-right: auto;
 }
