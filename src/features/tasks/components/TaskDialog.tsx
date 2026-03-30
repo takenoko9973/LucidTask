@@ -20,6 +20,7 @@ interface TaskDialogProps {
   onClose: () => void;
   onCreateTask: (input: CreateTaskInput) => Promise<unknown>;
   onUpdateTask: (input: UpdateTaskInput) => Promise<unknown>;
+  onDeleteTask: (id: string) => Promise<unknown>;
 }
 
 function toErrorMessage(error: unknown): string {
@@ -29,7 +30,22 @@ function toErrorMessage(error: unknown): string {
   return String(error);
 }
 
-export function TaskDialog({ route, locale, tasks, onClose, onCreateTask, onUpdateTask }: TaskDialogProps) {
+function confirmDelete(message: string): boolean {
+  if (typeof window === "undefined" || typeof window.confirm !== "function") {
+    return true;
+  }
+  return window.confirm(message);
+}
+
+export function TaskDialog({
+  route,
+  locale,
+  tasks,
+  onClose,
+  onCreateTask,
+  onUpdateTask,
+  onDeleteTask,
+}: TaskDialogProps) {
   const messages = getTasksMessages(locale);
   const dialogErrors = useMemo(
     () => ({
@@ -109,6 +125,34 @@ export function TaskDialog({ route, locale, tasks, onClose, onCreateTask, onUpda
       onClose();
     } catch (submitError) {
       setError(toErrorMessage(submitError));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (route.mode !== "edit") {
+      return;
+    }
+
+    const taskId = route.taskId?.trim();
+    if (!taskId) {
+      setError(messages.dialog.taskIdRequired);
+      return;
+    }
+
+    if (!confirmDelete(messages.dialog.deleteConfirm)) {
+      return;
+    }
+
+    setError(null);
+    setIsSaving(true);
+
+    try {
+      await onDeleteTask(taskId);
+      onClose();
+    } catch (deleteError) {
+      setError(toErrorMessage(deleteError));
     } finally {
       setIsSaving(false);
     }
@@ -200,6 +244,16 @@ export function TaskDialog({ route, locale, tasks, onClose, onCreateTask, onUpda
             ) : null}
 
             <div className="task-dialog__actions">
+              {route.mode === "edit" ? (
+                <button
+                  type="button"
+                  className="task-dialog__button task-dialog__button--danger"
+                  disabled={isSaving}
+                  onClick={handleDelete}
+                >
+                  {messages.dialog.delete}
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="task-dialog__button task-dialog__button--ghost"

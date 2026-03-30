@@ -171,4 +171,3 @@ describe("TasksWidget", () => {
     expect(setLocale).not.toHaveBeenCalled();
   });
 });
-

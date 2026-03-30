@@ -37,6 +37,8 @@
     "deadlineLabel": "Deadline",
     "pinLabel": "Pin this task",
     "cancel": "Cancel",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this task?",
     "save": "Save",
     "saving": "Saving...",
     "closeAria": "Close task dialog",

@@ -34,6 +34,7 @@ describe("TaskDialog", () => {
         onClose={() => undefined}
         onCreateTask={async () => createTask("created")}
         onUpdateTask={async () => createTask("updated")}
+        onDeleteTask={async () => []}
       />,
     );
 
@@ -54,6 +55,7 @@ describe("TaskDialog", () => {
         onClose={() => undefined}
         onCreateTask={async () => createTask("created")}
         onUpdateTask={async () => createTask("updated")}
+        onDeleteTask={async () => []}
       />,
     );
 
@@ -61,6 +63,7 @@ describe("TaskDialog", () => {
     expect(markup).toContain(messages.dialog.modeCreate);
     expect(markup).toContain("task-dialog-modal");
     expect(markup).toContain("datetime-local");
+    expect(markup).not.toContain(messages.dialog.delete);
     expect(markup).not.toContain("Confirm");
   });
 
@@ -78,13 +81,14 @@ describe("TaskDialog", () => {
         onClose={() => undefined}
         onCreateTask={async () => createTask("created")}
         onUpdateTask={async () => createTask("updated")}
+        onDeleteTask={async () => []}
       />,
     );
 
     // 検証
     expect(markup).toContain(messages.dialog.modeEdit);
+    expect(markup).toContain(messages.dialog.delete);
     expect(markup).toContain(messages.dialog.cancel);
     expect(markup).toContain(messages.dialog.save);
   });
 });
-

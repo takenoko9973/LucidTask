@@ -142,6 +142,7 @@ export function TasksWidget() {
         onClose={actions.closeDialog}
         onCreateTask={actions.createTask}
         onUpdateTask={actions.updateTask}
+        onDeleteTask={actions.deleteTask}
       />
     </>
   );

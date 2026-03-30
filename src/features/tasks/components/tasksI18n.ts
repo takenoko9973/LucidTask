@@ -49,6 +49,8 @@ export interface TaskDialogMessages {
   deadlineLabel: string;
   pinLabel: string;
   cancel: string;
+  delete: string;
+  deleteConfirm: string;
   save: string;
   saving: string;
   closeAria: string;

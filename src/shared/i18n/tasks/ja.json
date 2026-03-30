@@ -37,6 +37,8 @@
     "deadlineLabel": "期限",
     "pinLabel": "このタスクを固定する",
     "cancel": "キャンセル",
+    "delete": "削除",
+    "deleteConfirm": "このタスクを削除しますか？",
     "save": "保存",
     "saving": "保存中...",
     "closeAria": "タスクダイアログを閉じる",
