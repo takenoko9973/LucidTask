@@ -31,6 +31,10 @@ impl MenuLocale {
         self.labels().app_autostart.as_str()
     }
 
+    pub fn app_always_on_top_label(self) -> &'static str {
+        self.labels().app_always_on_top.as_str()
+    }
+
     pub fn app_language_label(self) -> &'static str {
         self.labels().app_language.as_str()
     }
@@ -71,6 +75,7 @@ impl MenuLocale {
 #[serde(rename_all = "camelCase")]
 struct NativeMenuLabelsRaw {
     app_autostart: String,
+    app_always_on_top: String,
     app_language: String,
     app_language_ja: String,
     app_language_en: String,
@@ -89,6 +94,7 @@ struct LocaleMessagesRaw {
 #[derive(Debug, Clone)]
 struct NativeMenuLabels {
     app_autostart: String,
+    app_always_on_top: String,
     app_language: String,
     app_language_ja: String,
     app_language_en: String,
@@ -130,6 +136,7 @@ fn parse_locale_messages(raw: &str) -> Option<LocaleMessagesRaw> {
 fn to_native_menu_labels(raw: NativeMenuLabelsRaw) -> NativeMenuLabels {
     NativeMenuLabels {
         app_autostart: raw.app_autostart,
+        app_always_on_top: raw.app_always_on_top,
         app_language: raw.app_language,
         app_language_ja: raw.app_language_ja,
         app_language_en: raw.app_language_en,
@@ -144,6 +151,7 @@ fn default_native_menu_catalog() -> NativeMenuCatalog {
     NativeMenuCatalog {
         ja: NativeMenuLabels {
             app_autostart: "自動起動".to_string(),
+            app_always_on_top: "最前列表示".to_string(),
             app_language: "言語".to_string(),
             app_language_ja: "日本語".to_string(),
             app_language_en: "English".to_string(),
@@ -154,6 +162,7 @@ fn default_native_menu_catalog() -> NativeMenuCatalog {
         },
         en: NativeMenuLabels {
             app_autostart: "Auto start".to_string(),
+            app_always_on_top: "Always on top".to_string(),
             app_language: "Language".to_string(),
             app_language_ja: "Japanese".to_string(),
             app_language_en: "English".to_string(),
@@ -182,5 +191,6 @@ mod tests {
         // 仕様: ネイティブメニュー文言は共通i18n JSONから取得される。
         assert_eq!(MenuLocale::Ja.app_quit_label(), "終了");
         assert_eq!(MenuLocale::En.app_language_label(), "Language");
+        assert_eq!(MenuLocale::Ja.app_always_on_top_label(), "最前列表示");
     }
 }

@@ -49,6 +49,7 @@
   },
   "nativeMenu": {
     "appAutostart": "Auto start",
+    "appAlwaysOnTop": "Always on top",
     "appLanguage": "Language",
     "appLanguageJa": "Japanese",
     "appLanguageEn": "English",

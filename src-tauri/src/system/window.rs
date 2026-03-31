@@ -4,7 +4,6 @@ pub const MAIN_WINDOW_LABEL: &str = "main";
 
 pub fn enforce_widget_policy<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let window = main_window(app)?;
-    window.set_always_on_top(true)?;
     window.set_skip_taskbar(true)?;
     Ok(())
 }
@@ -18,8 +17,14 @@ pub fn show_and_focus_main_window<R: Runtime>(app: &AppHandle<R>) -> tauri::Resu
 
     window.show()?;
     window.set_focus()?;
-    window.set_always_on_top(true)?;
     Ok(())
+}
+
+pub fn toggle_main_window_always_on_top<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<bool> {
+    let window = main_window(app)?;
+    let next = !window.is_always_on_top()?;
+    window.set_always_on_top(next)?;
+    Ok(next)
 }
 
 pub fn toggle_main_window_visibility<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<bool> {

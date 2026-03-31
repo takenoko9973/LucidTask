@@ -20,6 +20,7 @@ use native_menu_i18n::MenuLocale;
 type CommandResult<T> = Result<T, String>;
 
 const NATIVE_MENU_EVENT_NAME: &str = "tasks:native-menu-action";
+const MENU_ID_APP_ALWAYS_ON_TOP_TOGGLE: &str = "ctx.app.always-on-top.toggle";
 const MENU_ID_APP_AUTOSTART_TOGGLE: &str = "ctx.app.autostart.toggle";
 const MENU_ID_APP_LOCALE_JA: &str = "ctx.app.locale.ja";
 const MENU_ID_APP_LOCALE_EN: &str = "ctx.app.locale.en";
@@ -95,6 +96,7 @@ enum NativeMenuActionEvent {
 
 #[derive(Debug, PartialEq, Eq)]
 enum NativeMenuAction {
+    ToggleAlwaysOnTop,
     ToggleAutostart,
     Quit,
     Emit(NativeMenuActionEvent),
@@ -245,6 +247,18 @@ fn show_app_context_menu<R: Runtime>(
     window: &WebviewWindow<R>,
     request: AppContextMenuRequest,
 ) -> Result<(), String> {
+    let always_on_top_enabled = window
+        .is_always_on_top()
+        .map_err(|error| error.to_string())?;
+    let always_on_top_toggle = CheckMenuItem::with_id(
+        app,
+        MENU_ID_APP_ALWAYS_ON_TOP_TOGGLE,
+        request.locale.app_always_on_top_label(),
+        true,
+        always_on_top_enabled,
+        None::<&str>,
+    )
+    .map_err(|error| error.to_string())?;
     let autostart_enabled =
         crate::system::autostart::is_enabled(app).map_err(|error| error.to_string())?;
     let autostart_toggle = CheckMenuItem::with_id(
@@ -289,8 +303,16 @@ fn show_app_context_menu<R: Runtime>(
         None::<&str>,
     )
     .map_err(|error| error.to_string())?;
-    let menu = Menu::with_items(app, &[&autostart_toggle, &language_menu, &quit_item])
-        .map_err(|error| error.to_string())?;
+    let menu = Menu::with_items(
+        app,
+        &[
+            &always_on_top_toggle,
+            &autostart_toggle,
+            &language_menu,
+            &quit_item,
+        ],
+    )
+    .map_err(|error| error.to_string())?;
 
     window
         .popup_menu_at(&menu, popup_position(request.x, request.y))
@@ -362,6 +384,10 @@ fn show_task_context_menu<R: Runtime>(
 }
 
 fn parse_native_menu_action(menu_id: &str) -> Option<NativeMenuAction> {
+    if menu_id == MENU_ID_APP_ALWAYS_ON_TOP_TOGGLE {
+        return Some(NativeMenuAction::ToggleAlwaysOnTop);
+    }
+
     if menu_id == MENU_ID_APP_AUTOSTART_TOGGLE {
         return Some(NativeMenuAction::ToggleAutostart);
     }
@@ -502,6 +528,10 @@ pub fn handle_native_menu_event<R: Runtime>(
     };
 
     match action {
+        NativeMenuAction::ToggleAlwaysOnTop => {
+            crate::system::window::toggle_main_window_always_on_top(app)
+                .map_err(|error| error.to_string())?;
+        }
         NativeMenuAction::ToggleAutostart => {
             crate::system::autostart::toggle(app).map_err(|error| error.to_string())?;
         }
@@ -577,7 +607,13 @@ mod tests {
 
     #[test]
     fn parse_native_menu_action_maps_task_and_locale_items() {
-        // 仕様: ネイティブメニューIDは locale/edit/pin のactionへ正しく変換される。
+        // 仕様: ネイティブメニューIDは always-on-top/locale/edit/pin のactionへ正しく変換される。
+        let always_on_top_action = parse_native_menu_action("ctx.app.always-on-top.toggle");
+        assert_eq!(
+            always_on_top_action,
+            Some(NativeMenuAction::ToggleAlwaysOnTop)
+        );
+
         let locale_action = parse_native_menu_action("ctx.app.locale.en");
         assert_eq!(
             locale_action,
