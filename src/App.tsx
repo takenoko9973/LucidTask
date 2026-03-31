@@ -3,7 +3,7 @@ import { useWidgetWindowSizing } from "./features/tasks/components/useWidgetWind
 import { TasksProvider, TasksWidget, useTasksActions, useTasksState } from "./features/tasks";
 import "./App.css";
 
-const COMPLETED_TASK_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+const TASKS_MAINTENANCE_INTERVAL_MS = 60 * 1000;
 
 function reportBackgroundError(operation: string, error: unknown) {
   console.error(`[tasks] ${operation} failed`, error);
@@ -19,6 +19,7 @@ function TasksBootstrap() {
   const actions = useTasksActions();
   const state = useTasksState();
   const containerRef = useRef<HTMLElement | null>(null);
+  const isMaintenanceRunningRef = useRef(false);
 
   useWidgetWindowSizing({
     containerRef,
@@ -34,14 +35,27 @@ function TasksBootstrap() {
   });
 
   useEffect(() => {
-    runBackground("startup bootstrap", async () => {
-      await actions.initialize();
-      await actions.cleanupCompletedTasks();
-    });
+    const runMaintenanceCycle = () => {
+      runBackground("tasks maintenance", async () => {
+        if (isMaintenanceRunningRef.current) {
+          return;
+        }
+
+        isMaintenanceRunningRef.current = true;
+        try {
+          await actions.cleanupCompletedTasks();
+          await actions.initialize();
+        } finally {
+          isMaintenanceRunningRef.current = false;
+        }
+      });
+    };
+
+    runMaintenanceCycle();
 
     const intervalId = window.setInterval(() => {
-      runBackground("interval cleanup", () => actions.cleanupCompletedTasks());
-    }, COMPLETED_TASK_CLEANUP_INTERVAL_MS);
+      runMaintenanceCycle();
+    }, TASKS_MAINTENANCE_INTERVAL_MS);
 
     return () => {
       window.clearInterval(intervalId);
