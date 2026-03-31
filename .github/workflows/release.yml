@@ -9,9 +9,58 @@ permissions:
   contents: write
 
 jobs:
+  prepare_release_notes:
+    name: Prepare Release Notes
+    runs-on: ubuntu-22.04
+    outputs:
+      release_body: ${{ steps.release_notes.outputs.release_body }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build release notes from tag diff
+        id: release_notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          current_tag="${GITHUB_REF_NAME}"
+          previous_tag="$(git tag --sort=-creatordate | grep -vx "${current_tag}" | head -n 1 || true)"
+
+          if [[ -n "${previous_tag}" ]]; then
+            compare_range="${previous_tag}..${current_tag}"
+            compare_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${previous_tag}...${current_tag}"
+          else
+            compare_range="${current_tag}"
+            compare_url=""
+          fi
+
+          commits="$(git log --max-count=120 --pretty=format:'- %s (%h)' "${compare_range}" || true)"
+          if [[ -z "${commits}" ]]; then
+            commits="- 差分コミットなし"
+          fi
+
+          {
+            echo "release_body<<EOF"
+            echo "## 差分サマリ"
+            echo
+            if [[ -n "${compare_url}" ]]; then
+              echo "- Compare: ${compare_url}"
+              echo
+            fi
+            echo "## コミット"
+            echo "${commits}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
   publish:
     name: Publish (${{ matrix.platform }})
+    needs: prepare_release_notes
     runs-on: ${{ matrix.platform }}
+    env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
     strategy:
       fail-fast: false
       matrix:
@@ -37,6 +86,9 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.5
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -65,8 +117,8 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "LucidTask ${{ github.ref_name }}"
-          releaseBody: "Automated release for ${{ github.ref_name }}"
-          releaseDraft: true
+          releaseBody: ${{ needs.prepare_release_notes.outputs.release_body }}
+          releaseDraft: false
           prerelease: false
 
       - name: Create portable ZIP (Windows)
@@ -94,7 +146,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          draft: true
+          draft: false
           files: |
             src-tauri/target/release/lucid-task-portable-${{ github.ref_name }}-windows-x64.zip
         env:
@@ -105,7 +157,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          draft: true
+          draft: false
           files: |
             src-tauri/target/release/lucid-task-portable-${{ github.ref_name }}-linux-x64.zip
         env:
@@ -116,7 +168,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          draft: true
+          draft: false
           files: |
             src-tauri/target/release/lucid-task-portable-${{ github.ref_name }}-macos-universal.zip
         env:
