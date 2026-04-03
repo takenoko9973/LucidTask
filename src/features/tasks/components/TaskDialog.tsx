@@ -1,8 +1,14 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import type { CreateTaskInput, Task, UpdateTaskInput } from "../../../shared/types/task";
 import "../styles/task-dialog.css";
 import {
+  buildTaskDialogDeadlineTimeOptions,
+  buildTaskDialogRouteKey,
+  joinTaskDialogDeadlineInput,
+  resolveDefaultTaskDialogDeadlineTime,
+  shouldResetTaskDialogForm,
+  splitTaskDialogDeadlineInput,
   buildTaskDialogInitialSnapshot,
   toTaskType,
   validateTaskDialogForm,
@@ -61,11 +67,30 @@ export function TaskDialog({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDeleteConfirming, setIsDeleteConfirming] = useState(false);
+  const routeKey = buildTaskDialogRouteKey(route);
+  const previousRouteKeyRef = useRef<string | null>(null);
+  const deadlineTimeOptions = useMemo(() => buildTaskDialogDeadlineTimeOptions(), []);
+  const defaultDeadlineTime = useMemo(() => resolveDefaultTaskDialogDeadlineTime(), []);
+  const deadlineParts = useMemo(() => splitTaskDialogDeadlineInput(deadlineAt), [deadlineAt]);
+  // 未入力時は「現在時刻以降で最も近い15分枠」を初期選択にする。
+  const fallbackDeadlineTime = defaultDeadlineTime || deadlineTimeOptions[0] || "00:00";
+  const selectedDeadlineTime = deadlineParts.time || fallbackDeadlineTime;
 
   useEffect(() => {
+    if (!routeKey) {
+      previousRouteKeyRef.current = null;
+      return;
+    }
+
+    if (!shouldResetTaskDialogForm(previousRouteKeyRef.current, routeKey)) {
+      return;
+    }
+    previousRouteKeyRef.current = routeKey;
+
     if (!route) {
       return;
     }
+
     const snapshot = buildTaskDialogInitialSnapshot(route, tasks, dialogErrors);
     setTitle(snapshot.title);
     setTaskTypeKind(snapshot.taskTypeKind);
@@ -73,7 +98,7 @@ export function TaskDialog({
     setIsPinned(snapshot.isPinned);
     setError(snapshot.error);
     setIsDeleteConfirming(false);
-  }, [dialogErrors, route, tasks]);
+  }, [dialogErrors, route, routeKey, tasks]);
 
   const modeLabel = useMemo(
     () => (route?.mode === "create" ? messages.dialog.modeCreate : messages.dialog.modeEdit),
@@ -236,13 +261,31 @@ export function TaskDialog({
             {taskTypeKind === "deadline" ? (
               <label className="task-dialog__field">
                 <span>{messages.dialog.deadlineLabel}</span>
-                <input
-                  type="datetime-local"
-                  className="task-dialog__input"
-                  value={deadlineAt}
-                  disabled={isSaving}
-                  onChange={(event) => setDeadlineAt(event.target.value)}
-                />
+                <div className="task-dialog__deadline-inputs">
+                  <input
+                    type="date"
+                    className="task-dialog__input"
+                    value={deadlineParts.date}
+                    disabled={isSaving}
+                    onChange={(event) => {
+                      setDeadlineAt(joinTaskDialogDeadlineInput(event.target.value, selectedDeadlineTime));
+                    }}
+                  />
+                  <select
+                    className="task-dialog__input"
+                    value={selectedDeadlineTime}
+                    disabled={isSaving}
+                    onChange={(event) => {
+                      setDeadlineAt(joinTaskDialogDeadlineInput(deadlineParts.date, event.target.value));
+                    }}
+                  >
+                    {deadlineTimeOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </label>
             ) : null}
 
