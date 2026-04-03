@@ -13,9 +13,6 @@ jobs:
   verify:
     name: Verify (Windows)
     runs-on: windows-latest
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
 
     steps:
       - name: Checkout
@@ -35,14 +32,17 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.5
-
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
             src-tauri -> target
+          # CI / Release 間で同じRustキャッシュを再利用しやすくする。
+          shared-key: lucidtask-rust-v1
+          # job名差分でキーが分断されるのを防ぐ。
+          add-job-id-key: "false"
+          # ワークスペース内crateのビルド成果物も対象にして再コンパイルを減らす。
+          cache-workspace-crates: "true"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
