@@ -71,6 +71,12 @@
   color: #2a261e;
 }
 
+.task-dialog__deadline-inputs {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
 .task-dialog__fieldset {
   border: 1px solid rgba(197, 186, 166, 0.9);
   border-radius: 8px;

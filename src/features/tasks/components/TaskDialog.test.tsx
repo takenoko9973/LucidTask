@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { Task } from "../../../shared/types/task";
 import { getTasksMessages } from "./tasksI18n";
 import { TaskDialog, type TaskDialogRoute } from "./TaskDialog";
+import { buildTaskDialogDeadlineTimeOptions } from "./taskDialogModel";
 
 function createTask(id: string, title = id): Task {
   return {
@@ -20,6 +21,7 @@ function createRoute(route: TaskDialogRoute): TaskDialogRoute {
 
 describe("TaskDialog", () => {
   const messages = getTasksMessages("ja");
+  const deadlineTimeOptions = buildTaskDialogDeadlineTimeOptions();
 
   it("returns no markup when route is null", () => {
     // 準備
@@ -62,7 +64,11 @@ describe("TaskDialog", () => {
     // 検証
     expect(markup).toContain(messages.dialog.modeCreate);
     expect(markup).toContain("task-dialog-modal");
-    expect(markup).toContain("datetime-local");
+    expect(markup).toContain('type="date"');
+    expect(markup).toContain("<select");
+    expect(markup).toContain("<option");
+    expect(markup).toContain(deadlineTimeOptions[0] ?? "00:00");
+    expect(markup).toContain(deadlineTimeOptions[1] ?? "00:15");
     expect(markup).not.toContain(messages.dialog.delete);
     expect(markup).not.toContain(messages.dialog.deleteConfirm);
     expect(markup).not.toContain("Confirm");
