@@ -15,11 +15,14 @@ function createDeadlineTask(deadlineAt: string): Task {
 describe("getTaskIndicator", () => {
   const now = new Date("2026-03-26T10:00:00+09:00");
 
-  it("returns completed indicator when task has completedAt", () => {
+  it("returns completed indicator when task has completion", () => {
     const indicator = getTaskIndicator(
       {
         ...createDeadlineTask("2026-03-27T09:00:00+09:00"),
-        completedAt: "2026-03-26T12:00:00+09:00",
+        completion: {
+          kind: "deadline",
+          completedAt: "2026-03-26T12:00:00+09:00",
+        },
       },
       now,
     );
@@ -51,7 +54,11 @@ describe("getTaskIndicator", () => {
         title: "daily completed task",
         taskType: { kind: "daily" },
         isPinned: false,
-        completedAt: "2026-03-26T12:00:00+09:00",
+        completion: {
+          kind: "daily",
+          completedAt: "2026-03-26T12:00:00+09:00",
+          businessDay: "2026-03-26",
+        },
       },
       now,
     );

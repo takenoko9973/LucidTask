@@ -116,14 +116,22 @@ describe("createTasksActions", () => {
     api.completeTask.mockResolvedValueOnce([
       {
         ...createTask("task-2"),
-        completedAt: "2026-03-29T10:00:00+09:00",
+        completion: {
+          kind: "daily",
+          completedAt: "2026-03-29T10:00:00+09:00",
+          businessDay: "2026-03-29",
+        },
       },
     ]);
     await actions.completeTask("task-2");
     expect(harness.getState().tasks).toEqual([
       {
         ...createTask("task-2"),
-        completedAt: "2026-03-29T10:00:00+09:00",
+        completion: {
+          kind: "daily",
+          completedAt: "2026-03-29T10:00:00+09:00",
+          businessDay: "2026-03-29",
+        },
       },
     ]);
   });

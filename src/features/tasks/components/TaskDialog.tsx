@@ -69,6 +69,19 @@ export function TaskDialog({
   const [isDeleteConfirming, setIsDeleteConfirming] = useState(false);
   const routeKey = buildTaskDialogRouteKey(route);
   const previousRouteKeyRef = useRef<string | null>(null);
+  const editTargetTask = useMemo(() => {
+    if (route?.mode !== "edit") {
+      return null;
+    }
+
+    const taskId = route.taskId?.trim();
+    if (!taskId) {
+      return null;
+    }
+
+    return tasks.find((task) => task.id === taskId) ?? null;
+  }, [route, tasks]);
+  const isEditingCompletedTask = editTargetTask?.completion != null;
   const deadlineTimeOptions = useMemo(() => buildTaskDialogDeadlineTimeOptions(), []);
   const defaultDeadlineTime = useMemo(() => resolveDefaultTaskDialogDeadlineTime(), []);
   const deadlineParts = useMemo(() => splitTaskDialogDeadlineInput(deadlineAt), [deadlineAt]);
@@ -152,12 +165,15 @@ export function TaskDialog({
           setError(messages.dialog.taskIdRequired);
           return;
         }
-        await onUpdateTask({
+        const updateInput: UpdateTaskInput = {
           id: editTaskId,
           title: title.trim(),
           taskType,
-          isPinned,
-        });
+        };
+        if (!isEditingCompletedTask) {
+          updateInput.isPinned = isPinned;
+        }
+        await onUpdateTask(updateInput);
       }
 
       onClose();
@@ -293,7 +309,7 @@ export function TaskDialog({
               <input
                 type="checkbox"
                 checked={isPinned}
-                disabled={isSaving}
+                disabled={isSaving || isEditingCompletedTask}
                 onChange={(event) => setIsPinned(event.target.checked)}
               />
               {messages.dialog.pinLabel}

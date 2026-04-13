@@ -26,7 +26,12 @@ function createDeadlineTask(
       deadlineAt,
     },
     isPinned,
-    completedAt,
+    completion: completedAt
+      ? {
+          kind: "deadline",
+          completedAt,
+        }
+      : undefined,
   };
 }
 
@@ -38,7 +43,13 @@ function createDailyTask(id: string, title: string, isPinned = false, completedA
       kind: "daily",
     },
     isPinned,
-    completedAt,
+    completion: completedAt
+      ? {
+          kind: "daily",
+          completedAt,
+          businessDay: "2026-03-26",
+        }
+      : undefined,
   };
 }
 
