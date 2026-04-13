@@ -58,9 +58,6 @@ jobs:
     name: Publish (${{ matrix.platform }})
     needs: prepare_release_notes
     runs-on: ${{ matrix.platform }}
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
     strategy:
       fail-fast: false
       matrix:
@@ -87,14 +84,17 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.5
-
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
             src-tauri -> target
+          # CI / Release 間で同じRustキャッシュを再利用しやすくする。
+          shared-key: lucidtask-rust-v1
+          # job名差分でキーが分断されるのを防ぐ。
+          add-job-id-key: "false"
+          # ワークスペース内crateのビルド成果物も対象にして再コンパイルを減らす。
+          cache-workspace-crates: "true"
 
       - name: Install Linux system dependencies
         if: matrix.platform == 'ubuntu-22.04'
