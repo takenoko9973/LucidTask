@@ -8,9 +8,10 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use chrono::{Duration, Local};
+use chrono::{Duration, Local, LocalResult, TimeZone};
+use serde_json::{json, Value};
 
-use model::task::{Task, TaskType};
+use model::task::{Task, TaskCompletion, TaskType};
 use repository::{JsonTaskRepository, RepositoryError};
 
 fn make_task(id: &str, title: &str, is_pinned: bool) -> Task {
@@ -21,7 +22,15 @@ fn make_task(id: &str, title: &str, is_pinned: bool) -> Task {
             deadline_at: Local::now() + Duration::days(1),
         },
         is_pinned,
-        completed_at: None,
+        completion: None,
+    }
+}
+
+fn dt(year: i32, month: u32, day: u32, hour: u32, minute: u32) -> chrono::DateTime<Local> {
+    match Local.with_ymd_and_hms(year, month, day, hour, minute, 0) {
+        LocalResult::Single(value) => value,
+        LocalResult::Ambiguous(early, _) => early,
+        LocalResult::None => panic!("invalid local datetime"),
     }
 }
 
@@ -100,7 +109,7 @@ fn save_tasks_overwrites_existing_entries() {
         title: "updated".to_string(),
         task_type: TaskType::Daily,
         is_pinned: true,
-        completed_at: None,
+        completion: None,
     };
 
     repository
@@ -137,12 +146,14 @@ fn save_tasks_removes_entries_omitted_from_next_write() {
 
 #[test]
 fn save_tasks_persists_completed_tasks() {
-    // 仕様: completed_at を持つ完了タスクも通常タスクと同様に保存・復元される。
+    // 仕様: completion を持つ完了タスクも通常タスクと同様に保存・復元される。
     let temp_dir = TestDir::new("persist-completed");
     let repository = JsonTaskRepository::from_app_data_dir(temp_dir.path());
 
     let mut completed_task = make_task("task-1", "completed", false);
-    completed_task.completed_at = Some(Local::now());
+    completed_task.completion = Some(TaskCompletion::Deadline {
+        completed_at: Local::now(),
+    });
 
     let active_task = make_task("task-2", "active", true);
     repository
@@ -155,7 +166,7 @@ fn save_tasks_persists_completed_tasks() {
     assert!(loaded.iter().any(|task| task.id == active_task.id));
     assert!(loaded
         .iter()
-        .any(|task| task.id == "task-1" && task.completed_at.is_some()));
+        .any(|task| task.id == "task-1" && task.completion.is_some()));
 }
 
 #[test]
@@ -170,4 +181,87 @@ fn load_tasks_returns_error_when_json_is_broken() {
     let result = repository.load_tasks();
 
     assert!(matches!(result, Err(RepositoryError::Serde(_))));
+}
+
+#[test]
+fn load_tasks_accepts_legacy_array_and_save_migrates_to_v2_schema() {
+    // 仕様: 旧completedAt配列JSONを読めて、次回saveでschemaVersion=2へ移行する。
+    let temp_dir = TestDir::new("legacy-migrate");
+    let repository = JsonTaskRepository::from_app_data_dir(temp_dir.path());
+    let legacy_daily_completed_at = dt(2026, 3, 26, 4, 30).to_rfc3339();
+    let legacy_deadline_completed_at = dt(2026, 3, 26, 12, 0).to_rfc3339();
+    let deadline_at = dt(2026, 3, 30, 9, 0).to_rfc3339();
+
+    let legacy_payload = json!([
+        {
+            "id": "daily-1",
+            "title": "daily",
+            "taskType": { "kind": "daily" },
+            "isPinned": false,
+            "completedAt": legacy_daily_completed_at
+        },
+        {
+            "id": "deadline-1",
+            "title": "deadline",
+            "taskType": { "kind": "deadline", "deadlineAt": deadline_at },
+            "isPinned": false,
+            "completedAt": legacy_deadline_completed_at
+        }
+    ]);
+    fs::write(
+        repository.tasks_file_path(),
+        serde_json::to_string_pretty(&legacy_payload).expect("legacy payload should serialize"),
+    )
+    .expect("failed to write legacy payload");
+
+    let loaded = repository.load_tasks().expect("legacy load should succeed");
+    assert_eq!(loaded.len(), 2);
+
+    let daily = loaded
+        .iter()
+        .find(|task| task.id == "daily-1")
+        .expect("daily task should exist");
+    assert!(matches!(
+        daily.completion,
+        Some(TaskCompletion::Daily { .. })
+    ));
+
+    let deadline = loaded
+        .iter()
+        .find(|task| task.id == "deadline-1")
+        .expect("deadline task should exist");
+    assert!(matches!(
+        deadline.completion,
+        Some(TaskCompletion::Deadline { .. })
+    ));
+
+    repository
+        .save_tasks(&loaded)
+        .expect("save after legacy load should succeed");
+    let saved_raw =
+        fs::read_to_string(repository.tasks_file_path()).expect("should read saved tasks file");
+    let saved_json: Value = serde_json::from_str(&saved_raw).expect("saved payload should be json");
+
+    assert_eq!(saved_json["schemaVersion"], json!(2));
+    assert!(saved_json["tasks"].is_array());
+}
+
+#[test]
+fn load_tasks_rejects_unknown_schema_version() {
+    // 仕様: schemaVersionが未知の場合は安全側で読み込み失敗にする。
+    let temp_dir = TestDir::new("unknown-schema");
+    let repository = JsonTaskRepository::from_app_data_dir(temp_dir.path());
+    let payload = json!({
+        "schemaVersion": 99,
+        "tasks": []
+    });
+    fs::write(
+        repository.tasks_file_path(),
+        serde_json::to_string_pretty(&payload).expect("payload should serialize"),
+    )
+    .expect("failed to write payload");
+
+    let result = repository.load_tasks();
+
+    assert!(matches!(result, Err(RepositoryError::InvalidData(_))));
 }

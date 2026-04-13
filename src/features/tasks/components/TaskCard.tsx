@@ -22,7 +22,7 @@ interface TaskCardProps {
 export function TaskCard({ task, locale, now, onRequestContextMenu, onComplete }: TaskCardProps) {
   const messages = getTasksMessages(locale);
   const indicator = getTaskIndicator(task, now, locale);
-  const isCompleted = Boolean(task.completedAt);
+  const isCompleted = Boolean(task.completion);
   const deadlineText = getTaskDeadlineText(task, now, locale);
 
   return (

@@ -35,11 +35,15 @@
 - `title: string`
 - `taskType: TaskType`
 - `isPinned: boolean`
-- `completedAt?: string | null`（完了時刻。未完了は `null/undefined`）
+- `completion?: TaskCompletion`
+  - `{"kind":"deadline","completedAt":"..."}`
+  - `{"kind":"daily","completedAt":"...","businessDay":"YYYY-MM-DD"}`
+  - 未完了は `undefined`
 
 ### 4.3 永続化
 
-- `completedAt` を含めて永続化する（完了タスクは一覧に残る）。
+- 永続JSONは `{"schemaVersion":2,"tasks":[...]}` 形式で保存する。
+- 旧形式（`Task[]` + `completedAt`）は読込互換を維持し、保存時に `schemaVersion=2` 形式へ移行する。
 - 保存先は Tauri `identifier = com.lucidtask` に紐づくアプリデータ配下。
 - `identifier` 変更時の自動移行は行わない。
 
@@ -66,18 +70,20 @@
 ### 5.3 完了トグル
 
 - `complete_task` はトグル動作:
-  - 未完了 -> 完了（`completedAt` 付与）
-  - 完了 -> 未完了（`completedAt` 解除）
+  - 未完了 -> 完了（`completion` を付与）
+  - 完了 -> 未完了（`completion` を解除）
+- Daily 完了時は `completion.kind="daily"` と `businessDay`（05:00業務日境界）を保存する。
 
 ### 5.4 Daily リセット
 
-- Daily の完了状態は「業務日境界 05:00」を跨いだら未完了へ戻す。
+- Daily の完了状態は `completion.businessDay` と現在業務日を比較し、「業務日境界 05:00」を跨いだら未完了へ戻す。
 - 判定は `business day` 基準（05:00未満は前日扱い）。
 - リセット処理は `list_tasks` 系呼び出し時に適用される。
 
 ### 5.5 完了タスクの保持期間
 
-- 完了タスクは完了時刻から 72時間を超えると削除対象。
+- `completion.kind="deadline"` の完了タスクは完了時刻から 72時間を超えると削除対象。
+- `completion.kind="daily"` は cleanup 削除対象に含めない。
 - `cleanup_completed_tasks` で削除し、永続化にも反映する。
 
 ## 6. メイン画面仕様

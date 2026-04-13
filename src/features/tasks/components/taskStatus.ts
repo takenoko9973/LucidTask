@@ -34,7 +34,7 @@ export function getTaskIndicator(
     return buildIndicator("daily", labels);
   }
 
-  if (task.completedAt) {
+  if (task.completion) {
     return buildIndicator("completed", labels);
   }
 

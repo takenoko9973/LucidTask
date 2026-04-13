@@ -1,4 +1,4 @@
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Local, NaiveDate};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -13,6 +13,21 @@ pub enum TaskType {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum TaskCompletion {
+    Deadline {
+        #[serde(rename = "completedAt")]
+        completed_at: DateTime<Local>,
+    },
+    Daily {
+        #[serde(rename = "completedAt")]
+        completed_at: DateTime<Local>,
+        #[serde(rename = "businessDay")]
+        business_day: NaiveDate,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Task {
     pub id: String,
@@ -20,5 +35,5 @@ pub struct Task {
     pub task_type: TaskType,
     pub is_pinned: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub completed_at: Option<DateTime<Local>>,
+    pub completion: Option<TaskCompletion>,
 }

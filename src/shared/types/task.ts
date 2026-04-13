@@ -1,5 +1,6 @@
 export type TaskId = string;
 export type IsoDateTimeString = string;
+export type BusinessDayString = string;
 
 export type TaskType =
   | {
@@ -10,12 +11,23 @@ export type TaskType =
       kind: "daily";
     };
 
+export type TaskCompletion =
+  | {
+      kind: "deadline";
+      completedAt: IsoDateTimeString;
+    }
+  | {
+      kind: "daily";
+      completedAt: IsoDateTimeString;
+      businessDay: BusinessDayString;
+    };
+
 export interface Task {
   id: TaskId;
   title: string;
   taskType: TaskType;
   isPinned: boolean;
-  completedAt?: IsoDateTimeString | null;
+  completion?: TaskCompletion;
 }
 
 export interface CreateTaskInput {

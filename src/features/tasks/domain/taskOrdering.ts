@@ -40,10 +40,10 @@ export function isDueTodayOrOverdue(deadlineAt: string, now: Date): boolean {
 
 export function toTaskSortKey(task: Task, now: Date): TaskSortKey {
   // group: 0=固定, 1=期限超過/当日, 2=daily, 3=未来期限, 4=完了
-  if (task.completedAt) {
+  if (task.completion) {
     return {
       group: 4,
-      sortValue: toCompletedSortValue(task.completedAt),
+      sortValue: toCompletedSortValue(task.completion.completedAt),
       title: task.title,
       id: task.id,
     };

@@ -38,7 +38,7 @@ export function createTaskContextMenuInput(
     y: point.y,
     taskId: task.id,
     isPinned: task.isPinned,
-    isCompleted: Boolean(task.completedAt),
+    isCompleted: Boolean(task.completion),
   };
 }
 

@@ -104,7 +104,11 @@ describe("taskApi", () => {
       title: "done",
       taskType: { kind: "daily" },
       isPinned: false,
-      completedAt: "2026-03-29T10:00:00+09:00",
+      completion: {
+        kind: "daily",
+        completedAt: "2026-03-29T10:00:00+09:00",
+        businessDay: "2026-03-29",
+      },
     };
     invokeMock.mockResolvedValueOnce([completedTask]);
 

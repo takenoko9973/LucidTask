@@ -16,7 +16,7 @@ export function sortTasks(tasks: readonly Task[], now: Date = new Date()): Task[
 }
 
 export function countActiveTasks(tasks: readonly Task[]): number {
-  return tasks.filter((task) => !task.completedAt).length;
+  return tasks.filter((task) => !task.completion).length;
 }
 
 export function canExpandTaskList(activeCount: number, totalCount: number): boolean {
@@ -30,7 +30,7 @@ export function selectVisibleTasks(sortedTasks: readonly Task[], isExpanded: boo
     return [...sortedTasks];
   }
 
-  const activeTasks = sortedTasks.filter((task) => !task.completedAt);
+  const activeTasks = sortedTasks.filter((task) => !task.completion);
   return activeTasks.slice(0, INITIAL_VISIBLE_TASK_COUNT);
 }
 

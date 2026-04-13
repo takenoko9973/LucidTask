@@ -174,7 +174,11 @@ describe("TasksWidgetView", () => {
       title: "Task",
       taskType: { kind: "daily" },
       isPinned: true,
-      completedAt: "2026-03-29T10:00:00+09:00",
+      completion: {
+        kind: "daily",
+        completedAt: "2026-03-29T10:00:00+09:00",
+        businessDay: "2026-03-29",
+      },
     };
 
     expect(createTaskContextMenuInput("en", task, { x: 50, y: 80 })).toEqual({

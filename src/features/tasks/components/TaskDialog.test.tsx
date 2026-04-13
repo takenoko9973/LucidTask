@@ -99,4 +99,34 @@ describe("TaskDialog", () => {
     expect(markup).toContain(messages.dialog.cancel);
     expect(markup).toContain(messages.dialog.save);
   });
+
+  it("disables pin control when editing a completed task", () => {
+    // 仕様: 完了タスク編集では pin 更新は不可。
+    const route = createRoute({ mode: "edit", taskId: "task-3" });
+    const tasks: Task[] = [
+      {
+        ...createTask("task-3", "Done task"),
+        completion: {
+          kind: "daily",
+          completedAt: new Date("2026-04-03T12:00:00.000Z").toISOString(),
+          businessDay: "2026-04-03",
+        },
+      },
+    ];
+
+    const markup = renderToStaticMarkup(
+      <TaskDialog
+        route={route}
+        locale="ja"
+        tasks={tasks}
+        onClose={() => undefined}
+        onCreateTask={async () => createTask("created")}
+        onUpdateTask={async () => createTask("updated")}
+        onDeleteTask={async () => []}
+      />,
+    );
+
+    expect(markup).toContain('type="checkbox"');
+    expect(markup).toContain('type="checkbox" disabled=""');
+  });
 });
