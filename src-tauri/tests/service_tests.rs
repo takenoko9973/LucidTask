@@ -7,12 +7,12 @@ mod service;
 
 use std::sync::{Arc, Mutex};
 
-use chrono::{DateTime, Duration, Local, LocalResult, TimeZone};
+use chrono::{DateTime, Duration, Local, LocalResult, TimeZone, Timelike};
 
-use model::task::{Task, TaskType};
+use model::task::{Task, TaskCompletion, TaskType};
 use service::{
-    TaskService, TaskServiceError, TaskStore, COMPLETED_RETENTION_HOURS, DAILY_RESET_HOUR,
-    MAX_PINNED_TASKS,
+    TaskService, TaskServiceError, TaskStore, UpdateTaskInput, COMPLETED_RETENTION_HOURS,
+    DAILY_RESET_HOUR, MAX_PINNED_TASKS,
 };
 
 #[derive(Clone, Default)]
@@ -66,7 +66,7 @@ fn deadline_task(id: &str, title: &str, deadline_at: DateTime<Local>, is_pinned:
         title: title.to_string(),
         task_type: TaskType::Deadline { deadline_at },
         is_pinned,
-        completed_at: None,
+        completion: None,
     }
 }
 
@@ -76,7 +76,26 @@ fn daily_task(id: &str, title: &str, is_pinned: bool) -> Task {
         title: title.to_string(),
         task_type: TaskType::Daily,
         is_pinned,
-        completed_at: None,
+        completion: None,
+    }
+}
+
+fn business_day_at_for_test(value: DateTime<Local>) -> chrono::NaiveDate {
+    let date = value.date_naive();
+    if value.hour() < DAILY_RESET_HOUR {
+        return date.pred_opt().unwrap_or(date);
+    }
+    date
+}
+
+fn deadline_completion(completed_at: DateTime<Local>) -> TaskCompletion {
+    TaskCompletion::Deadline { completed_at }
+}
+
+fn daily_completion(completed_at: DateTime<Local>) -> TaskCompletion {
+    TaskCompletion::Daily {
+        completed_at,
+        business_day: business_day_at_for_test(completed_at),
     }
 }
 
@@ -90,7 +109,7 @@ fn list_tasks_enforces_spec_priority_and_completed_last() {
         dt(2026, 3, 24, 9, 0),
         false,
     );
-    completed_old.completed_at = Some(dt(2026, 3, 25, 12, 0));
+    completed_old.completion = Some(deadline_completion(dt(2026, 3, 25, 12, 0)));
 
     let mut completed_new = deadline_task(
         "completed-new",
@@ -98,7 +117,7 @@ fn list_tasks_enforces_spec_priority_and_completed_last() {
         dt(2026, 3, 24, 10, 0),
         false,
     );
-    completed_new.completed_at = Some(dt(2026, 3, 26, 9, 30));
+    completed_new.completion = Some(deadline_completion(dt(2026, 3, 26, 9, 30)));
 
     let store = InMemoryStore::with_tasks(vec![
         deadline_task("future-2", "future-2", dt(2026, 3, 28, 9, 0), false),
@@ -192,7 +211,7 @@ fn complete_task_toggles_completion_state() {
         .iter()
         .find(|task| task.id == "a")
         .expect("completed task should remain visible");
-    assert!(completed.completed_at.is_some());
+    assert!(completed.completion.is_some());
     assert!(!completed.is_pinned);
 
     let toggled_back = service
@@ -202,23 +221,82 @@ fn complete_task_toggles_completion_state() {
         .iter()
         .find(|task| task.id == "a")
         .expect("restored task should remain visible");
-    assert!(restored.completed_at.is_none());
+    assert!(restored.completion.is_none());
     assert!(!restored.is_pinned);
 
     let persisted_tasks = persisted.snapshot();
     assert!(persisted_tasks
         .iter()
-        .any(|task| task.id == "a" && task.completed_at.is_none()));
+        .any(|task| task.id == "a" && task.completion.is_none()));
+}
+
+#[test]
+fn update_task_allows_completed_task_edit_when_pin_state_is_unchanged() {
+    // 仕様: 完了タスクでも編集は可能。ただし pin 状態は変更しない。
+    let mut completed = daily_task("done", "before", false);
+    completed.completion = Some(daily_completion(dt(2026, 3, 26, 11, 0)));
+    let store = InMemoryStore::with_tasks(vec![completed]);
+    let persisted = store.clone();
+    let mut service = TaskService::new(store).expect("service creation should succeed");
+
+    let updated = service
+        .update_task(UpdateTaskInput {
+            id: "done".to_string(),
+            title: Some("after".to_string()),
+            task_type: Some(TaskType::Deadline {
+                deadline_at: dt(2026, 3, 28, 9, 0),
+            }),
+            is_pinned: Some(false),
+        })
+        .expect("updating completed task should succeed");
+
+    assert_eq!(updated.id, "done");
+    assert_eq!(updated.title, "after");
+    assert!(matches!(updated.task_type, TaskType::Deadline { .. }));
+    assert!(updated.completion.is_some());
+
+    let persisted_task = persisted
+        .snapshot()
+        .into_iter()
+        .find(|task| task.id == "done")
+        .expect("updated task should be persisted");
+    assert_eq!(persisted_task.title, "after");
+    assert!(matches!(persisted_task.task_type, TaskType::Deadline { .. }));
+    assert!(persisted_task.completion.is_some());
+    assert!(!persisted_task.is_pinned);
+}
+
+#[test]
+fn update_task_rejects_pin_change_for_completed_task() {
+    // 仕様: 完了タスクへの pin 更新は不可。
+    let mut completed = daily_task("done", "done", false);
+    completed.completion = Some(daily_completion(dt(2026, 3, 26, 11, 0)));
+    let store = InMemoryStore::with_tasks(vec![completed]);
+    let mut service = TaskService::new(store).expect("service creation should succeed");
+
+    let result = service.update_task(UpdateTaskInput {
+        id: "done".to_string(),
+        title: Some("edited".to_string()),
+        task_type: None,
+        is_pinned: Some(true),
+    });
+
+    assert_eq!(
+        result,
+        Err(TaskServiceError::CompletedTaskImmutable {
+            id: "done".to_string()
+        })
+    );
 }
 
 #[test]
 fn list_tasks_resets_daily_completion_after_5am_boundary() {
     // 仕様: daily の完了状態は営業日境界（05:00）をまたぐと未完了へ戻る。
     let mut daily = daily_task("daily", "daily", false);
-    daily.completed_at = Some(dt(2026, 3, 26, 4, 30));
+    daily.completion = Some(daily_completion(dt(2026, 3, 26, 4, 30)));
 
     let mut deadline = deadline_task("deadline", "deadline", dt(2026, 3, 27, 12, 0), false);
-    deadline.completed_at = Some(dt(2026, 3, 26, 4, 30));
+    deadline.completion = Some(deadline_completion(dt(2026, 3, 26, 4, 30)));
 
     let store = InMemoryStore::with_tasks(vec![daily, deadline]);
     let mut service = TaskService::new(store).expect("service creation should succeed");
@@ -228,7 +306,7 @@ fn list_tasks_resets_daily_completion_after_5am_boundary() {
         .iter()
         .find(|task| task.id == "daily")
         .expect("daily task should exist");
-    assert!(before_daily.completed_at.is_some());
+    assert!(before_daily.completion.is_some());
 
     let after_reset = service.list_tasks_at(dt(2026, 3, 26, DAILY_RESET_HOUR, 0));
     let after_daily = after_reset
@@ -240,19 +318,23 @@ fn list_tasks_resets_daily_completion_after_5am_boundary() {
         .find(|task| task.id == "deadline")
         .expect("deadline task should exist");
 
-    assert!(after_daily.completed_at.is_none());
-    assert!(after_deadline.completed_at.is_some());
+    assert!(after_daily.completion.is_none());
+    assert!(after_deadline.completion.is_some());
 }
 
 #[test]
 fn cleanup_completed_tasks_respects_72h_boundary_and_persists() {
     // 仕様: 72時間を超えた完了タスクのみ削除し、結果を永続化する。
     let now = dt(2026, 3, 26, 12, 0);
-    let mut keep_task = daily_task("keep", "keep", false);
-    keep_task.completed_at = Some(now - Duration::hours(COMPLETED_RETENTION_HOURS - 1));
+    let mut keep_task = deadline_task("keep", "keep", dt(2026, 3, 27, 12, 0), false);
+    keep_task.completion = Some(deadline_completion(
+        now - Duration::hours(COMPLETED_RETENTION_HOURS - 1),
+    ));
 
-    let mut remove_task = daily_task("remove", "remove", false);
-    remove_task.completed_at = Some(now - Duration::hours(COMPLETED_RETENTION_HOURS));
+    let mut remove_task = deadline_task("remove", "remove", dt(2026, 3, 28, 12, 0), false);
+    remove_task.completion = Some(deadline_completion(
+        now - Duration::hours(COMPLETED_RETENTION_HOURS),
+    ));
 
     let store = InMemoryStore::with_tasks(vec![keep_task, remove_task]);
     let persisted = store.clone();
@@ -272,10 +354,34 @@ fn cleanup_completed_tasks_respects_72h_boundary_and_persists() {
 }
 
 #[test]
+fn cleanup_completed_tasks_keeps_daily_tasks_that_crossed_business_day() {
+    // 仕様: cleanupはDeadline完了のみ削除対象。Daily完了は保持し、リセット責務はlist側に委譲する。
+    let now = dt(2026, 3, 30, 6, 0);
+    let mut daily = daily_task("daily", "daily", false);
+    daily.completion = Some(daily_completion(dt(2026, 3, 26, 4, 30)));
+    let mut deadline = deadline_task("deadline", "deadline", dt(2026, 4, 1, 12, 0), false);
+    deadline.completion = Some(deadline_completion(dt(2026, 3, 26, 4, 30)));
+
+    let store = InMemoryStore::with_tasks(vec![daily, deadline]);
+    let persisted = store.clone();
+    let mut service = TaskService::new(store).expect("service creation should succeed");
+
+    let removed = service
+        .cleanup_completed_tasks_at(now)
+        .expect("cleanup should succeed");
+
+    assert_eq!(removed, 1);
+    let persisted_tasks = persisted.snapshot();
+    assert_eq!(persisted_tasks.len(), 1);
+    assert_eq!(persisted_tasks[0].id, "daily");
+    assert!(persisted_tasks[0].completion.is_some());
+}
+
+#[test]
 fn set_task_pinned_rejects_completed_task() {
     // 仕様: 完了タスクは pin 更新不可。
     let mut completed = daily_task("done", "done", false);
-    completed.completed_at = Some(dt(2026, 3, 26, 11, 0));
+    completed.completion = Some(daily_completion(dt(2026, 3, 26, 11, 0)));
 
     let store = InMemoryStore::with_tasks(vec![completed]);
     let mut service = TaskService::new(store).expect("service creation should succeed");
